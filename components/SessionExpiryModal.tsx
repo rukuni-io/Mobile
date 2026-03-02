@@ -57,7 +57,7 @@ const SessionExpiryModal: React.FC<SessionExpiryModalProps> = ({
     if (visible) {
       Animated.timing(progressAnim, {
         toValue: countdown / 10,
-        duration: 900,
+        duration: 1400,
         useNativeDriver: false,
       }).start();
     }
