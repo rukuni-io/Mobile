@@ -23,6 +23,7 @@ import NotificationDetailScreen from './screens/auth/user/NotificationDetailScre
 import ProfileScreen from './screens/auth/user/ProfileScreen';
 import ReferralScreen from './screens/auth/user/ReferralScreen';
 import SettingsScreen from './screens/auth/user/SettingsScreen';
+import SupportScreen from './screens/auth/user/SupportScreen';
 
 type RootStackParamList = {
   Home: undefined;
@@ -39,6 +40,7 @@ type RootStackParamList = {
   Profile: undefined;
   Referral: undefined;
   Settings: undefined;
+  Support: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -152,6 +154,11 @@ const AppContent: React.FC = () => {
             <Stack.Screen
               name="Settings"
               component={SettingsScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Support"
+              component={SupportScreen}
               options={{ headerShown: false }}
             />
           </Stack.Navigator>

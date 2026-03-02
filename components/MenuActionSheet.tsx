@@ -99,6 +99,11 @@ const MenuActionSheet: React.FC<MenuActionSheetProps> = ({
     navigation.navigate('Settings');
   };
 
+  const handleSupport = () => {
+    actionSheetRef.current?.hide();
+    navigation.navigate('Support');
+  };
+
   const sections: MenuSection[] = [
     {
       title: 'Finance',
@@ -147,6 +152,7 @@ const MenuActionSheet: React.FC<MenuActionSheetProps> = ({
           label: 'Support',
           iconBg: semanticColors.infoLight,
           iconColor: semanticColors.info,
+          onPress: handleSupport,
         },
         {
           icon: 'gift-outline',
