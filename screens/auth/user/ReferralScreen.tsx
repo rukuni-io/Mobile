@@ -15,6 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
+import axios from 'axios';
+import Constants from 'expo-constants';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Toast from 'react-native-toast-message';
 
@@ -62,22 +64,14 @@ interface UserData {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const fmtCurrency = (n: number) =>
-    new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n);
+const fmtPoints = (n: number) =>
+    `${n.toLocaleString()} ${n === 1 ? 'pt' : 'pts'}`;
 
 const fmtShort = (iso: string) =>
     new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
 const initials = (n?: string) =>
     (n || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-
-// ─── Fallback referrals ───────────────────────────────────────────────────────
-const SAMPLE_REFS: Referral[] = [
-    { name: 'James Adeyemi',  date: '2026-02-10', status: 'active',  reward: 10 },
-    { name: 'Chioma Okafor',  date: '2026-02-14', status: 'active',  reward: 10 },
-    { name: 'David Mensah',   date: '2026-02-18', status: 'pending', reward: 10 },
-    { name: 'Fatima Bello',   date: '2026-02-20', status: 'pending', reward: 10 },
-];
 
 // ─── Sub-Components ───────────────────────────────────────────────────────────
 const SecLabel: React.FC<{ text: string }> = ({ text }) => {
@@ -87,27 +81,93 @@ const SecLabel: React.FC<{ text: string }> = ({ text }) => {
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 const ReferralScreen: React.FC = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    const apiUrl = Constants.expoConfig?.extra?.apiUrl || '';
 
     const [user, setUser]       = useState<UserData>({});
+    const [refs, setRefs]       = useState<Referral[]>([]);
     const [loading, setLoading] = useState(true);
     const [copied, setCopied]   = useState(false);
+    const [regenerating, setRegenerating] = useState(false);
+
+    // Fetch referral dashboard data
+    const fetchDashboard = useCallback(async () => {
+        try {
+            const token = await AsyncStorage.getItem('token');
+            const response = await axios.get<any>(`${apiUrl}/user/referral`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            
+            // Handle different possible response structures
+            const data = response.data?.data || response.data;
+            setUser({
+                referral_code: data.referral_code || data.referralCode || data.code,
+                referral_earnings: data.referral_earnings || data.referralEarnings || data.earnings || 0,
+                referrals_count: data.referrals_count || data.referralsCount || data.count || 0,
+            });
+        } catch (error) {
+            Toast.show({ type: 'error', text1: 'Failed to load referral data' });
+        }
+    }, [apiUrl]);
+
+    // Fetch referral history
+    const fetchHistory = useCallback(async () => {
+        try {
+            const token = await AsyncStorage.getItem('token');
+            const response = await axios.get<{ referrals?: Referral[] }>(`${apiUrl}/user/referral/history`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            setRefs(response.data.referrals || []);
+        } catch (error) {
+            setRefs([]);
+        }
+    }, [apiUrl]);
 
     useEffect(() => {
         (async () => {
             try {
-                const raw = await AsyncStorage.getItem('user');
-                if (raw) setUser(JSON.parse(raw));
+                await Promise.all([fetchDashboard(), fetchHistory()]);
             } finally {
                 setLoading(false);
             }
         })();
-    }, []);
+    }, [fetchDashboard, fetchHistory]);
+
+    // Regenerate referral code
+    const handleRegenerate = useCallback(async () => {
+        setRegenerating(true);
+        try {
+            const token = await AsyncStorage.getItem('token');
+            const response = await axios.post<{ referral_code?: string; code?: string; data?: { referral_code?: string } }>(
+                `${apiUrl}/user/referral/regenerate-code`,
+                {},
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            // Handle different possible response structures
+            const newCode = response.data.referral_code 
+                || response.data.code 
+                || response.data.data?.referral_code;
+            
+            if (newCode) {
+                setUser(prev => ({ ...prev, referral_code: newCode }));
+                Toast.show({ type: 'success', text1: 'Referral code regenerated!' });
+            } else {
+                Toast.show({ type: 'error', text1: 'Unexpected response format' });
+            }
+        } catch (error: any) {
+            Toast.show({
+                type: 'error',
+                text1: error.response?.data?.message || 'Failed to regenerate code',
+            });
+        } finally {
+            setRegenerating(false);
+        }
+    }, [apiUrl]);
 
     const referralCode = user.referral_code ?? 'GRP-XXXX';
     const earnings     = user.referral_earnings ?? 0;
-    const refs         = user.referrals ?? SAMPLE_REFS;
-    const active       = refs.filter(r => r.status === 'active').length;
-    const pending      = refs.filter(r => r.status === 'pending').length;
+    const referrals    = refs; // Use actual data, no fallback to sample
+    const active       = referrals.filter(r => r.status === 'active').length;
+    const pending      = referrals.filter(r => r.status === 'pending').length;
     const milestone    = 50;
     const progress     = Math.min((earnings / milestone) * 100, 100);
 
@@ -162,7 +222,7 @@ const ReferralScreen: React.FC = () => {
                             <Text style={styles.headerTitle}>Referral Programme</Text>
                             <Text style={styles.headerSub}>
                                 Earn{' '}
-                                <Text style={{ color: '#fff', fontWeight: '800' }}>£10</Text>
+                                <Text style={{ color: '#fff', fontWeight: '800' }}>10 points</Text>
                                 {' '}for every friend who joins GroupSave
                             </Text>
                             {/* Mini stats */}
@@ -170,7 +230,7 @@ const ReferralScreen: React.FC = () => {
                                 {[
                                     { label: 'ACTIVE',  value: String(active) },
                                     { label: 'PENDING', value: String(pending) },
-                                    { label: 'EARNED',  value: fmtCurrency(earnings) },
+                                    { label: 'EARNED',  value: fmtPoints(earnings) },
                                 ].map(s => (
                                     <View key={s.label} style={styles.miniStat}>
                                         <Text style={styles.miniStatValue}>{s.value}</Text>
@@ -211,6 +271,21 @@ const ReferralScreen: React.FC = () => {
                                 </LinearGradient>
                             </TouchableOpacity>
                         </View>
+                        <TouchableOpacity
+                            style={styles.regenerateBtn}
+                            onPress={handleRegenerate}
+                            disabled={regenerating}
+                            activeOpacity={0.7}
+                        >
+                            <Ionicons
+                                name="refresh-outline"
+                                size={14}
+                                color={regenerating ? D.textMuted : D.accent}
+                            />
+                            <Text style={[styles.regenerateBtnText, regenerating && { color: D.textMuted }]}>
+                                {regenerating ? 'Regenerating...' : 'Regenerate Code'}
+                            </Text>
+                        </TouchableOpacity>
                     </View>
 
                     {/* ── Earnings Overview ── */}
@@ -220,15 +295,15 @@ const ReferralScreen: React.FC = () => {
                             <View>
                                 <Text style={styles.earningsSubLabel}>Total Earned</Text>
                                 <Text style={[styles.earningsBig, { color: D.accent2 }]}>
-                                    {fmtCurrency(earnings)}
+                                    {fmtPoints(earnings)}
                                 </Text>
                             </View>
                             <View style={{ alignItems: 'flex-end' }}>
                                 <Text style={styles.earningsSubLabel}>Per Referral</Text>
-                                <Text style={[styles.earningsBig, { color: D.accent }]}>£10</Text>
+                                <Text style={[styles.earningsBig, { color: D.accent }]}>10 pts</Text>
                             </View>
                         </View>
-                        <Text style={styles.milestoneLabel}>Progress to {fmtCurrency(milestone)} milestone</Text>
+                        <Text style={styles.milestoneLabel}>Progress to {fmtPoints(milestone)} milestone</Text>
                         <View style={styles.progressTrack}>
                             <LinearGradient
                                 colors={['#38d9a9', '#20b087']}
@@ -238,8 +313,8 @@ const ReferralScreen: React.FC = () => {
                             />
                         </View>
                         <View style={styles.progressLabels}>
-                            <Text style={styles.progressText}>{fmtCurrency(earnings)} earned</Text>
-                            <Text style={styles.progressText}>{fmtCurrency(milestone - earnings)} to go</Text>
+                            <Text style={styles.progressText}>{fmtPoints(earnings)} earned</Text>
+                            <Text style={styles.progressText}>{fmtPoints(milestone - earnings)} to go</Text>
                         </View>
                     </View>
 
@@ -269,12 +344,14 @@ const ReferralScreen: React.FC = () => {
                     {/* ── Referral History ── */}
                     <SecLabel text="Referral History" />
                     <View style={styles.card}>
-                        {refs.map((r, i) => (
+                        {referrals.length === 0 ? (
+                            <Text style={styles.emptyText}>No referrals yet. Share your code to get started!</Text>
+                        ) : referrals.map((r, i) => (
                             <View
                                 key={i}
                                 style={[
                                     styles.refRow,
-                                    i < refs.length - 1 && styles.refRowBorder,
+                                    i < referrals.length - 1 && styles.refRowBorder,
                                 ]}
                             >
                                 <View
@@ -308,7 +385,7 @@ const ReferralScreen: React.FC = () => {
                                             { color: r.status === 'active' ? D.accent2 : D.textMuted },
                                         ]}
                                     >
-                                        {r.status === 'active' ? `+${fmtCurrency(r.reward)}` : 'Pending'}
+                                        {r.status === 'active' ? `+${fmtPoints(r.reward)}` : 'Pending'}
                                     </Text>
                                     <View
                                         style={[
@@ -340,7 +417,7 @@ const ReferralScreen: React.FC = () => {
                             { n: 1, icon: '🔗', text: 'Share your unique code with friends' },
                             { n: 2, icon: '📝', text: 'They sign up on GroupSave using your code' },
                             { n: 3, icon: '✅', text: 'They create or join their first savings group' },
-                            { n: 4, icon: '💰', text: '£10 is credited to your account automatically' },
+                            { n: 4, icon: '💰', text: '10 points are credited to your account automatically' },
                         ].map((s, idx, arr) => (
                             <View
                                 key={s.n}
@@ -436,6 +513,25 @@ const styles = StyleSheet.create({
         flexDirection: 'row', alignItems: 'center', gap: 6,
     },
     copyBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+    regenerateBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        marginTop: 12,
+        paddingVertical: 8,
+    },
+    regenerateBtnText: {
+        color: D.accent,
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    emptyText: {
+        color: D.textMuted,
+        fontSize: 13,
+        textAlign: 'center',
+        paddingVertical: 20,
+    },
 
     // Earnings
     earningsRow: {

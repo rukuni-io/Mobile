@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -61,13 +61,53 @@ function SignupScreen() {
     mobile: '',
     password: '',
     password_confirmation: '',
+    referralCode: '',
   });
+
+  // Referral code validation state
+  const [referralValid, setReferralValid] = useState<boolean | null>(null);
+  const [referralError, setReferralError] = useState('');
+  const [referralValidating, setReferralValidating] = useState(false);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // ── Step 0 / 1 field errors ──
   const [step1Errors, setStep1Errors] = useState<Partial<typeof formData>>({});
   const [step2Errors, setStep2Errors] = useState<Partial<typeof formData>>({});
 
   const apiUrl = Constants.expoConfig?.extra?.apiUrl || '';
+
+  // ── Referral code validation ──
+  const validateReferralCode = useCallback(async (code: string) => {
+    if (!code.trim()) {
+      setReferralValid(null);
+      setReferralError('');
+      setReferralValidating(false);
+      return;
+    }
+
+    setReferralValidating(true);
+    try {
+      await axios.post(`${apiUrl}/referral/validate`, { code });
+      setReferralValid(true);
+      setReferralError('');
+    } catch (error: any) {
+      setReferralValid(false);
+      setReferralError(error.response?.data?.message || 'Invalid referral code');
+    } finally {
+      setReferralValidating(false);
+    }
+  }, [apiUrl]);
+
+  const handleReferralChange = useCallback((val: string) => {
+    setFormData(p => ({ ...p, referralCode: val }));
+    setReferralValid(null);
+    setReferralError('');
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (val.trim()) {
+      setReferralValidating(true);
+      debounceRef.current = setTimeout(() => validateReferralCode(val), 500);
+    }
+  }, [validateReferralCode]);
 
   // ── Step 0 → 1 ──
   const handleStep1 = async () => {
@@ -77,12 +117,24 @@ function SignupScreen() {
         { abortEarly: false },
       );
       setStep1Errors({});
-      setStep(1);
     } catch (err: any) {
       const errs: Partial<typeof formData> = {};
       err.inner?.forEach((e: any) => { errs[e.path as keyof typeof formData] = e.message; });
       setStep1Errors(errs);
+      return;
     }
+
+    // Check referral code validity if provided
+    if (formData.referralCode.trim() && referralValid === false) {
+      setReferralError('Please enter a valid referral code or leave it empty');
+      return;
+    }
+    if (formData.referralCode.trim() && referralValidating) {
+      setReferralError('Validating referral code, please wait...');
+      return;
+    }
+
+    setStep(1);
   };
 
   // ── Step 1 → API register ──
@@ -108,6 +160,7 @@ function SignupScreen() {
         mobile: formData.mobile,
         password: formData.password,
         password_confirmation: formData.password_confirmation,
+        ...(referralValid && formData.referralCode.trim() ? { referral_code: formData.referralCode.trim() } : {}),
       });
       if (response.status === 201) {
         setStep(2);
@@ -210,6 +263,20 @@ function SignupScreen() {
                 keyboardType="phone-pad"
                 error={step1Errors.mobile}
               />
+              <FloatingLabelInput
+                label="Referral code (optional)"
+                value={formData.referralCode}
+                onChangeText={handleReferralChange}
+                iconName="gift-outline"
+                error={referralError}
+                autoCapitalize="characters"
+              />
+              {referralValidating && (
+                <Text style={styles.referralValidating}>Validating...</Text>
+              )}
+              {referralValid && (
+                <Text style={styles.referralValid}>✓ Valid referral code</Text>
+              )}
               <PrimaryButton label="Continue" onPress={handleStep1} />
             </>
           )}
@@ -389,6 +456,20 @@ const styles = StyleSheet.create({
   signinLink: {
     color: D.accent,
     fontWeight: '700',
+  },
+  referralValid: {
+    color: D.accent,
+    fontSize: 12,
+    marginTop: -8,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  referralValidating: {
+    color: D.textMuted,
+    fontSize: 12,
+    marginTop: -8,
+    marginBottom: 8,
+    marginLeft: 4,
   },
 });
 
