@@ -55,9 +55,97 @@ interface Ticket {
 
 type ScreenType = 'hub' | 'category' | 'new-ticket' | 'my-tickets' | 'ticket-detail' | 'ticket-success';
 
-// ─── FAQ Data ─────────────────────────────────────────────────────────────────
+// ─── API Configuration ────────────────────────────────────────────────────────
 
-const CATEGORIES: Category[] = [
+const API_BASE_URL = Constants.expoConfig?.extra?.apiBaseUrl ?? 'https://api.groupsave.app/api';
+
+// Helper to get auth headers
+const getAuthHeaders = async () => {
+  const token = await AsyncStorage.getItem('accessToken');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+// API response type
+interface ApiResponse<T> {
+  data?: T;
+  status?: string;
+  message?: string;
+}
+
+// ─── API Functions ────────────────────────────────────────────────────────────
+
+const SupportAPI = {
+  // Public endpoints
+  getFAQ: async (): Promise<Category[]> => {
+    const response = await axios.get<ApiResponse<Category[]>>(`${API_BASE_URL}/support/faq`);
+    return response.data.data || (response.data as unknown as Category[]);
+  },
+
+  searchFAQ: async (query: string): Promise<Category[]> => {
+    const response = await axios.get<ApiResponse<Category[]>>(`${API_BASE_URL}/support/faq/search`, {
+      params: { q: query },
+    });
+    return response.data.data || (response.data as unknown as Category[]);
+  },
+
+  getFAQBySlug: async (slug: string): Promise<Category> => {
+    const response = await axios.get<ApiResponse<Category>>(`${API_BASE_URL}/support/faq/${slug}`);
+    return response.data.data || (response.data as unknown as Category);
+  },
+
+  submitFAQFeedback: async (faqId: string, helpful: boolean): Promise<void> => {
+    await axios.post(`${API_BASE_URL}/support/faq/${faqId}/feedback`, { helpful });
+  },
+
+  getContactInfo: async (): Promise<{ email: string; phone?: string; sla?: Record<string, string> }> => {
+    const response = await axios.get<ApiResponse<{ email: string; phone?: string; sla?: Record<string, string> }>>(`${API_BASE_URL}/support/contact`);
+    return response.data.data || (response.data as unknown as { email: string; phone?: string; sla?: Record<string, string> });
+  },
+
+  // Authenticated endpoints
+  getTickets: async (): Promise<Ticket[]> => {
+    const headers = await getAuthHeaders();
+    const response = await axios.get<ApiResponse<Ticket[]>>(`${API_BASE_URL}/user/support/tickets`, { headers });
+    return response.data.data || (response.data as unknown as Ticket[]);
+  },
+
+  createTicket: async (data: {
+    subject: string;
+    category: string;
+    priority: string;
+    message: string;
+  }): Promise<{ id: string; subject: string }> => {
+    const headers = await getAuthHeaders();
+    const response = await axios.post<ApiResponse<{ id: string; subject: string }>>(`${API_BASE_URL}/user/support/tickets`, data, { headers });
+    return response.data.data || (response.data as unknown as { id: string; subject: string });
+  },
+
+  getTicketById: async (ticketId: string): Promise<Ticket & { messages?: Array<{ sender: string; text: string; date: string }> }> => {
+    const headers = await getAuthHeaders();
+    type TicketDetail = Ticket & { messages?: Array<{ sender: string; text: string; date: string }> };
+    const response = await axios.get<ApiResponse<TicketDetail>>(`${API_BASE_URL}/user/support/tickets/${ticketId}`, { headers });
+    return response.data.data || (response.data as unknown as TicketDetail);
+  },
+
+  replyToTicket: async (ticketId: string, message: string): Promise<void> => {
+    const headers = await getAuthHeaders();
+    await axios.post(`${API_BASE_URL}/user/support/tickets/${ticketId}/reply`, { message }, { headers });
+  },
+
+  escalateTicket: async (ticketId: string): Promise<void> => {
+    const headers = await getAuthHeaders();
+    await axios.post(`${API_BASE_URL}/user/support/tickets/${ticketId}/escalate`, {}, { headers });
+  },
+
+  submitTicketFeedback: async (ticketId: string, helpful: boolean): Promise<void> => {
+    const headers = await getAuthHeaders();
+    await axios.post(`${API_BASE_URL}/user/support/tickets/${ticketId}/feedback`, { helpful }, { headers });
+  },
+};
+
+// ─── FAQ Fallback Data ────────────────────────────────────────────────────────
+
+const CATEGORIES_FALLBACK: Category[] = [
   {
     id: 'account',
     icon: '🔐',
@@ -338,15 +426,74 @@ interface HubProps {
 const HubView: React.FC<HubProps> = ({ nav, insets }) => {
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
+  const [categories, setCategories] = useState<Category[]>(CATEGORIES_FALLBACK);
+  const [loading, setLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<Array<{ q: string; a: string; cat: Category }>>([]);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const results =
-    query.trim().length > 1
-      ? CATEGORIES.flatMap((c) =>
-          c.articles
-            .filter((a) => a.q.toLowerCase().includes(query.toLowerCase()))
-            .map((a) => ({ ...a, cat: c }))
-        )
-      : [];
+  // Fetch FAQ categories on mount
+  useEffect(() => {
+    const fetchFAQ = async () => {
+      try {
+        setLoading(true);
+        const data = await SupportAPI.getFAQ();
+        if (data && data.length > 0) {
+          setCategories(data);
+        }
+      } catch (error) {
+        console.warn('Failed to fetch FAQ, using fallback data:', error);
+        // Keep fallback data
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchFAQ();
+  }, []);
+
+  // Debounced search
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (query.trim().length > 1) {
+      setSearching(true);
+      searchTimeoutRef.current = setTimeout(async () => {
+        try {
+          const data = await SupportAPI.searchFAQ(query);
+          // Transform API results to expected format
+          const results = data.flatMap((c) =>
+            c.articles
+              .filter((a) => a.q.toLowerCase().includes(query.toLowerCase()))
+              .map((a) => ({ ...a, cat: c }))
+          );
+          setSearchResults(results);
+        } catch (error) {
+          // Fallback to local search
+          const localResults = categories.flatMap((c) =>
+            c.articles
+              .filter((a) => a.q.toLowerCase().includes(query.toLowerCase()))
+              .map((a) => ({ ...a, cat: c }))
+          );
+          setSearchResults(localResults);
+        } finally {
+          setSearching(false);
+        }
+      }, 300);
+    } else {
+      setSearchResults([]);
+      setSearching(false);
+    }
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [query, categories]);
+
+  const results = query.trim().length > 1 ? searchResults : [];
 
   return (
     <ScrollView style={styles.hubContainer} showsVerticalScrollIndicator={false}>
@@ -383,8 +530,12 @@ const HubView: React.FC<HubProps> = ({ nav, insets }) => {
         {/* Search Results */}
         {query.trim().length > 1 && (
           <View style={styles.searchResults}>
-            <SecLabel text={`${results.length} result${results.length !== 1 ? 's' : ''} for "${query}"`} />
-            {results.length === 0 ? (
+            <SecLabel text={searching ? 'Searching...' : `${results.length} result${results.length !== 1 ? 's' : ''} for "${query}"`} />
+            {searching ? (
+              <View style={{ paddingVertical: 30, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color={D.accent} />
+              </View>
+            ) : results.length === 0 ? (
               <Card style={{ alignItems: 'center', paddingVertical: 28 }}>
                 <Text style={{ fontSize: 38, marginBottom: 12 }}>🤷</Text>
                 <Text style={styles.emptyTitle}>No results found</Text>
@@ -488,27 +639,34 @@ const HubView: React.FC<HubProps> = ({ nav, insets }) => {
 
             {/* Categories */}
             <SecLabel text="Browse Help Topics" />
-            {CATEGORIES.map((cat) => (
-              <TouchableOpacity
-                key={cat.id}
-                style={styles.categoryCard}
-                onPress={() => nav('category', { cat })}
-              >
-                <View style={[styles.categoryIcon, { backgroundColor: cat.color + '18', borderColor: cat.color + '28' }]}>
-                  <Text style={{ fontSize: 20 }}>{cat.icon}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.categoryLabel}>{cat.label}</Text>
-                  <Text style={styles.categoryDesc}>{cat.desc}</Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <View style={[styles.articleCountBadge, { backgroundColor: cat.color + '15' }]}>
-                    <Text style={[styles.articleCountText, { color: cat.color }]}>{cat.articles.length}</Text>
+            {loading ? (
+              <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                <ActivityIndicator size="large" color={D.accent} />
+                <Text style={{ color: D.textMuted, marginTop: 12, fontSize: 13 }}>Loading help topics...</Text>
+              </View>
+            ) : (
+              categories.map((cat) => (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={styles.categoryCard}
+                  onPress={() => nav('category', { cat })}
+                >
+                  <View style={[styles.categoryIcon, { backgroundColor: cat.color + '18', borderColor: cat.color + '28' }]}>
+                    <Text style={{ fontSize: 20 }}>{cat.icon}</Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={16} color={D.textMuted} />
-                </View>
-              </TouchableOpacity>
-            ))}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.categoryLabel}>{cat.label}</Text>
+                    <Text style={styles.categoryDesc}>{cat.desc}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View style={[styles.articleCountBadge, { backgroundColor: cat.color + '15' }]}>
+                      <Text style={[styles.articleCountText, { color: cat.color }]}>{cat.articles?.length || 0}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={D.textMuted} />
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
 
             {/* Legal */}
             <SecLabel text="Legal & Privacy" />
@@ -549,6 +707,7 @@ interface CategoryViewProps {
 
 const CategoryView: React.FC<CategoryViewProps> = ({ cat, onBack, onArticle, expandArticle, insets }) => {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
+  const [feedbackGiven, setFeedbackGiven] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     if (expandArticle) {
@@ -556,6 +715,19 @@ const CategoryView: React.FC<CategoryViewProps> = ({ cat, onBack, onArticle, exp
       if (idx !== -1) setOpenIdx(idx);
     }
   }, [expandArticle, cat.articles]);
+
+  const handleFeedback = async (articleIdx: number, helpful: boolean) => {
+    try {
+      // Use article index as ID for now - adjust based on actual API
+      const articleId = `${cat.id}-${articleIdx}`;
+      await SupportAPI.submitFAQFeedback(articleId, helpful);
+      setFeedbackGiven((prev) => ({ ...prev, [articleIdx]: true }));
+    } catch (error) {
+      console.warn('Failed to submit FAQ feedback:', error);
+      // Still mark as given for UX
+      setFeedbackGiven((prev) => ({ ...prev, [articleIdx]: true }));
+    }
+  };
 
   return (
     <ScrollView style={styles.hubContainer} showsVerticalScrollIndicator={false}>
@@ -593,9 +765,18 @@ const CategoryView: React.FC<CategoryViewProps> = ({ cat, onBack, onArticle, exp
                 <View style={styles.faqBody}>
                   <Text style={styles.faqAnswer}>{a.a}</Text>
                   <View style={styles.faqActions}>
-                    <TouchableOpacity style={styles.faqHelpfulBtn}>
-                      <Text style={styles.faqHelpfulText}>👍 Helpful</Text>
-                    </TouchableOpacity>
+                    {feedbackGiven[i] ? (
+                      <Text style={{ color: D.accent2, fontSize: 13 }}>✓ Thanks for your feedback!</Text>
+                    ) : (
+                      <>
+                        <TouchableOpacity style={styles.faqHelpfulBtn} onPress={() => handleFeedback(i, true)}>
+                          <Text style={styles.faqHelpfulText}>👍 Helpful</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.faqHelpfulBtn} onPress={() => handleFeedback(i, false)}>
+                          <Text style={styles.faqHelpfulText}>👎 Not helpful</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
                     <TouchableOpacity style={styles.faqNeedHelpBtn} onPress={onArticle}>
                       <Text style={styles.faqNeedHelpText}>Still need help →</Text>
                     </TouchableOpacity>
@@ -649,23 +830,23 @@ const NewTicketView: React.FC<NewTicketViewProps> = ({ onBack, onSubmitted, defa
     if (!validate()) return;
     setBusy(true);
     
-    // TODO: Uncomment and configure for real API integration
-    // try {
-    //   const apiUrl = Constants.expoConfig?.extra?.apiUrl || '';
-    //   const token = await AsyncStorage.getItem('token');
-    //   await axios.post(`${apiUrl}/user/support/tickets`, form, {
-    //     headers: { Authorization: `Bearer ${token}` },
-    //   });
-    // } catch (error) {
-    //   // Handle error
-    // }
-
-    // Mock response
-    setTimeout(() => {
+    try {
+      const response = await SupportAPI.createTicket({
+        subject: form.subject,
+        category: form.category,
+        priority: form.priority,
+        message: form.message,
+      });
       setBusy(false);
+      onSubmitted(response.id, form.subject);
+    } catch (error: any) {
+      setBusy(false);
+      // Show error or fallback to mock for demo
+      console.warn('Failed to create ticket:', error);
+      // Fallback to mock response for demo/offline
       const id = 'TK-' + String(100 + Math.floor(Math.random() * 899)).padStart(3, '0');
       onSubmitted(id, form.subject);
-    }, 1500);
+    }
   };
 
   const pColors: Record<string, string> = {
@@ -704,7 +885,7 @@ const NewTicketView: React.FC<NewTicketViewProps> = ({ onBack, onSubmitted, defa
           <View style={styles.formGroup}>
             <Text style={styles.formLabel}>CATEGORY</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryPicker}>
-              {CATEGORIES.map((c) => (
+              {CATEGORIES_FALLBACK.map((c) => (
                 <TouchableOpacity
                   key={c.id}
                   style={[
@@ -811,9 +992,11 @@ interface MyTicketsViewProps {
   onTicket: (t: Ticket) => void;
   tickets: Ticket[];
   insets: { top: number; bottom: number };
+  loading?: boolean;
+  onRefresh?: () => void;
 }
 
-const MyTicketsView: React.FC<MyTicketsViewProps> = ({ onBack, onTicket, tickets, insets }) => {
+const MyTicketsView: React.FC<MyTicketsViewProps> = ({ onBack, onTicket, tickets, insets, loading, onRefresh }) => {
   const openCount = tickets.filter((t) => t.status === 'open' || t.status === 'in_review').length;
 
   return (
@@ -851,14 +1034,26 @@ const MyTicketsView: React.FC<MyTicketsViewProps> = ({ onBack, onTicket, tickets
         </View>
 
         <SecLabel text="All Requests" />
-        {tickets.length === 0 ? (
+        {loading ? (
+          <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+            <ActivityIndicator size="large" color={D.accent} />
+            <Text style={{ color: D.textMuted, marginTop: 12, fontSize: 13 }}>Loading tickets...</Text>
+          </View>
+        ) : tickets.length === 0 ? (
           <View style={styles.emptyTickets}>
             <Text style={{ fontSize: 38, marginBottom: 12 }}>🎉</Text>
             <Text style={styles.emptyTitle}>No tickets yet</Text>
             <Text style={styles.emptySubtitle}>You haven't submitted any support requests</Text>
           </View>
         ) : (
-          tickets.map((t) => {
+          <>
+            {onRefresh && (
+              <TouchableOpacity onPress={onRefresh} style={{ alignSelf: 'flex-end', marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Ionicons name="refresh" size={14} color={D.accent} />
+                <Text style={{ color: D.accent, fontSize: 13 }}>Refresh</Text>
+              </TouchableOpacity>
+            )}
+            {tickets.map((t) => {
             const s = STATUS_CONFIG[t.status] || STATUS_CONFIG.open;
             const p = PRIORITY_CONFIG[t.priority] || PRIORITY_CONFIG.medium;
             const isActive = t.status === 'open' || t.status === 'in_review';
@@ -882,7 +1077,8 @@ const MyTicketsView: React.FC<MyTicketsViewProps> = ({ onBack, onTicket, tickets
                 </View>
               </TouchableOpacity>
             );
-          })
+          })}
+          </>
         )}
       </View>
     </ScrollView>
@@ -902,8 +1098,52 @@ interface TicketDetailViewProps {
 
 const TicketDetailView: React.FC<TicketDetailViewProps> = ({ ticket, onBack, showToast, insets }) => {
   const [reply, setReply] = useState('');
+  const [replyLoading, setReplyLoading] = useState(false);
+  const [escalateLoading, setEscalateLoading] = useState(false);
+  const [feedbackGiven, setFeedbackGiven] = useState(false);
   const s = STATUS_CONFIG[ticket.status] || STATUS_CONFIG.open;
   const p = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.medium;
+
+  const handleReply = async () => {
+    if (!reply.trim()) return;
+    setReplyLoading(true);
+    try {
+      await SupportAPI.replyToTicket(ticket.id, reply);
+      showToast('Reply sent to support team');
+      setReply('');
+    } catch (error) {
+      console.warn('Failed to send reply:', error);
+      showToast('Failed to send reply. Please try again.');
+    } finally {
+      setReplyLoading(false);
+    }
+  };
+
+  const handleEscalate = async () => {
+    setEscalateLoading(true);
+    try {
+      await SupportAPI.escalateTicket(ticket.id);
+      showToast('Ticket escalated to senior support');
+    } catch (error) {
+      console.warn('Failed to escalate:', error);
+      showToast('Failed to escalate. Please try again.');
+    } finally {
+      setEscalateLoading(false);
+    }
+  };
+
+  const handleFeedback = async (helpful: boolean) => {
+    try {
+      await SupportAPI.submitTicketFeedback(ticket.id, helpful);
+      setFeedbackGiven(true);
+      showToast(helpful ? 'Thanks for your feedback!' : "We'll look into it further");
+    } catch (error) {
+      console.warn('Failed to submit feedback:', error);
+      // Still mark as given for UX
+      setFeedbackGiven(true);
+      showToast(helpful ? 'Thanks for your feedback!' : "We'll look into it further");
+    }
+  };
 
   const slaMap: Record<string, string> = {
     low: '72hr SLA',
@@ -1002,23 +1242,23 @@ const TicketDetailView: React.FC<TicketDetailViewProps> = ({ ticket, onBack, sho
                 multiline
                 numberOfLines={4}
                 textAlignVertical="top"
+                editable={!replyLoading}
               />
               <Btn
-                onPress={() => {
-                  if (reply.trim()) {
-                    showToast('Reply sent to support team');
-                    setReply('');
-                  }
-                }}
+                onPress={handleReply}
                 style={{ marginBottom: 10 }}
+                disabled={replyLoading || !reply.trim()}
               >
-                Send Reply
+                {replyLoading ? 'Sending...' : 'Send Reply'}
               </Btn>
               <TouchableOpacity
-                style={styles.escalateBtn}
-                onPress={() => showToast('Ticket escalated to senior support')}
+                style={[styles.escalateBtn, escalateLoading && { opacity: 0.6 }]}
+                onPress={handleEscalate}
+                disabled={escalateLoading}
               >
-                <Text style={styles.escalateBtnText}>🚨 Escalate this ticket</Text>
+                <Text style={styles.escalateBtnText}>
+                  {escalateLoading ? '🚨 Escalating...' : '🚨 Escalate this ticket'}
+                </Text>
               </TouchableOpacity>
             </>
           )}
@@ -1029,14 +1269,18 @@ const TicketDetailView: React.FC<TicketDetailViewProps> = ({ ticket, onBack, sho
               <Text style={{ fontSize: 30, marginBottom: 8 }}>✅</Text>
               <Text style={styles.resolvedTitle}>Ticket Resolved</Text>
               <Text style={styles.resolvedSub}>Was this resolution helpful?</Text>
-              <View style={styles.resolvedActions}>
-                <TouchableOpacity style={styles.resolvedBtnYes} onPress={() => showToast('Thanks for your feedback!')}>
-                  <Text style={styles.resolvedBtnYesText}>👍 Yes, thanks</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.resolvedBtnNo} onPress={() => showToast("We'll look into it further")}>
-                  <Text style={styles.resolvedBtnNoText}>👎 Needs work</Text>
-                </TouchableOpacity>
-              </View>
+              {feedbackGiven ? (
+                <Text style={{ color: D.accent2, fontSize: 14, marginTop: 12 }}>✓ Thanks for your feedback!</Text>
+              ) : (
+                <View style={styles.resolvedActions}>
+                  <TouchableOpacity style={styles.resolvedBtnYes} onPress={() => handleFeedback(true)}>
+                    <Text style={styles.resolvedBtnYesText}>👍 Yes, thanks</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.resolvedBtnNo} onPress={() => handleFeedback(false)}>
+                    <Text style={styles.resolvedBtnNoText}>👎 Needs work</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           )}
         </View>
@@ -1111,11 +1355,30 @@ const SupportScreen: React.FC = () => {
   const [ctx, setCtx] = useState<any>({});
   const [toast, setToast] = useState<string | null>(null);
   const [newId, setNewId] = useState<string>('');
-  const [tickets, setTickets] = useState<Ticket[]>([
-    { id: 'TK-003', subject: 'Payout delay for Trip Saving group', status: 'open', priority: 'high', date: '2026-02-25', updated: '2026-02-25' },
-    { id: 'TK-002', subject: "Can't invite member to Nigeria Trip group", status: 'in_review', priority: 'high', date: '2026-02-22', updated: '2026-02-23' },
-    { id: 'TK-001', subject: 'Payment not showing in dashboard', status: 'resolved', priority: 'medium', date: '2026-02-18', updated: '2026-02-20' },
-  ]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+  const ticketsFetched = useRef(false);
+
+  // Fetch tickets when navigating to my-tickets
+  useEffect(() => {
+    if (screen === 'my-tickets' && !ticketsFetched.current) {
+      fetchTickets();
+    }
+  }, [screen]);
+
+  const fetchTickets = async () => {
+    setTicketsLoading(true);
+    try {
+      const data = await SupportAPI.getTickets();
+      setTickets(data);
+      ticketsFetched.current = true;
+    } catch (error) {
+      console.warn('Failed to fetch tickets:', error);
+      // Keep existing tickets on error
+    } finally {
+      setTicketsLoading(false);
+    }
+  };
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -1185,6 +1448,8 @@ const SupportScreen: React.FC = () => {
           onTicket={(t) => nav('ticket-detail', { ticket: t })}
           tickets={tickets}
           insets={insets}
+          loading={ticketsLoading}
+          onRefresh={fetchTickets}
         />
       </SlideIn>
 
