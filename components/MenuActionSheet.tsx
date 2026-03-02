@@ -5,6 +5,7 @@ import ActionSheet, { ActionSheetRef } from 'react-native-actions-sheet';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { semanticColors } from '../theme/semanticColors';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -103,8 +104,8 @@ const MenuActionSheet: React.FC<MenuActionSheetProps> = ({
       title: 'Finance',
       items: [
         {
-          icon: 'cash-outline',
-          label: 'Deposit',
+          icon: 'megaphone-outline',
+          label: 'Ads',
           iconBg: semanticColors.successLight,
           iconColor: semanticColors.success,
         },
