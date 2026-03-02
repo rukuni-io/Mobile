@@ -21,6 +21,7 @@ import Constants from 'expo-constants';
 import { D } from '../theme/tokens';
 import PrimaryButton from '../components/PrimaryButton';
 import FloatingLabelInput from '../components/FloatingLabelInput';
+import { useAuth } from '../context/AuthContext';
 
 
 type RootStackParamList = {
@@ -37,6 +38,7 @@ const validationSchema = Yup.object({
 
 const SigninScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { setIsAuthenticated, setupExpirationTimer } = useAuth();
   const initialValues = {
     email: '',
     password: '',
@@ -58,6 +60,11 @@ const SigninScreen: React.FC = () => {
         await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
         const expiresAt = Date.now() + response.data.expires_in * 1000;
         await AsyncStorage.setItem('tokenExpiresAt', expiresAt.toString());
+        
+        // Update auth context state
+        setIsAuthenticated(true);
+        await setupExpirationTimer();
+        
         navigation.reset({ index: 0, routes: [{ name: 'Dashboard' }] });
       } else {
         Dialog.show({ type: ALERT_TYPE.DANGER, title: 'Sign In Error', textBody: 'Invalid response from server', button: 'Close' });
