@@ -25,19 +25,43 @@ import { D } from '../../../theme/tokens';
 // ─── Types ────────────────────────────────────────────────────────────────────
 type RootStackParamList = { Dashboard: undefined };
 
-interface Referral {
-    name:    string;
-    date:    string;
-    status:  'active' | 'pending';
-    reward:  number;
+interface ReferredUser {
+    name: string;
+    initials: string;
 }
 
-interface UserData {
-    name?:              string;
-    referral_code?:     string;
-    referral_earnings?: number;
-    referrals_count?:   number;
-    referrals?:         Referral[];
+interface ReferralHistoryItem {
+    id: number;
+    referred_user: ReferredUser;
+    points_awarded: number;
+    status: 'active' | 'pending';
+    date: string;
+}
+
+interface ReferralStats {
+    active: number;
+    pending: number;
+    total_points: number;
+}
+
+interface EarningsOverview {
+    total_points: number;
+    points_per_referral: number;
+}
+
+interface Milestone {
+    next_target: number;
+    current_points: number;
+    points_to_go: number;
+    progress_percentage: number;
+}
+
+interface ReferralData {
+    referral_code: string;
+    stats: ReferralStats;
+    earnings_overview: EarningsOverview;
+    milestone: Milestone;
+    history: ReferralHistoryItem[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -60,54 +84,37 @@ const ReferralScreen: React.FC = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const apiUrl = Constants.expoConfig?.extra?.apiUrl || '';
 
-    const [user, setUser]       = useState<UserData>({});
-    const [refs, setRefs]       = useState<Referral[]>([]);
+    const [referralData, setReferralData] = useState<ReferralData | null>(null);
     const [loading, setLoading] = useState(true);
     const [copied, setCopied]   = useState(false);
     const [regenerating, setRegenerating] = useState(false);
 
-    // Fetch referral dashboard data
+    // Fetch referral dashboard data (includes history)
     const fetchDashboard = useCallback(async () => {
         try {
             const token = await AsyncStorage.getItem('token');
-            const response = await axios.get<any>(`${apiUrl}/user/referral`, {
+            const response = await axios.get<{ success: boolean; data: ReferralData }>(`${apiUrl}/user/referral`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             
-            // Handle different possible response structures
+            // Handle response structure
             const data = response.data?.data || response.data;
-            setUser({
-                referral_code: data.referral_code || data.referralCode || data.code,
-                referral_earnings: data.referral_earnings || data.referralEarnings || data.earnings || 0,
-                referrals_count: data.referrals_count || data.referralsCount || data.count || 0,
-            });
+            console.log('Referral dashboard data:', JSON.stringify(data, null, 2));
+            setReferralData(data as ReferralData);
         } catch (error) {
             Toast.show({ type: 'error', text1: 'Failed to load referral data' });
-        }
-    }, [apiUrl]);
-
-    // Fetch referral history
-    const fetchHistory = useCallback(async () => {
-        try {
-            const token = await AsyncStorage.getItem('token');
-            const response = await axios.get<{ referrals?: Referral[] }>(`${apiUrl}/user/referral/history`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            setRefs(response.data.referrals || []);
-        } catch (error) {
-            setRefs([]);
         }
     }, [apiUrl]);
 
     useEffect(() => {
         (async () => {
             try {
-                await Promise.all([fetchDashboard(), fetchHistory()]);
+                await fetchDashboard();
             } finally {
                 setLoading(false);
             }
         })();
-    }, [fetchDashboard, fetchHistory]);
+    }, [fetchDashboard]);
 
     // Regenerate referral code
     const handleRegenerate = useCallback(async () => {
@@ -125,7 +132,7 @@ const ReferralScreen: React.FC = () => {
                 || response.data.data?.referral_code;
             
             if (newCode) {
-                setUser(prev => ({ ...prev, referral_code: newCode }));
+                setReferralData(prev => prev ? { ...prev, referral_code: newCode } : null);
                 Toast.show({ type: 'success', text1: 'Referral code regenerated!' });
             } else {
                 Toast.show({ type: 'error', text1: 'Unexpected response format' });
@@ -140,13 +147,14 @@ const ReferralScreen: React.FC = () => {
         }
     }, [apiUrl]);
 
-    const referralCode = user.referral_code ?? 'GRP-XXXX';
-    const earnings     = user.referral_earnings ?? 0;
-    const referrals    = refs; // Use actual data, no fallback to sample
-    const active       = referrals.filter(r => r.status === 'active').length;
-    const pending      = referrals.filter(r => r.status === 'pending').length;
-    const milestone    = 50;
-    const progress     = Math.min((earnings / milestone) * 100, 100);
+    // Extract values from referralData with defaults
+    const referralCode = referralData?.referral_code ?? 'GRP-XXXX';
+    const earnings     = referralData?.earnings_overview?.total_points ?? 0;
+    const history      = referralData?.history ?? [];
+    const active       = referralData?.stats?.active ?? 0;
+    const pending      = referralData?.stats?.pending ?? 0;
+    const milestone    = referralData?.milestone?.next_target ?? 50;
+    const progress     = referralData?.milestone?.progress_percentage ?? Math.min((earnings / milestone) * 100, 100);
 
     const handleCopy = useCallback(async () => {
         try {
@@ -326,14 +334,14 @@ const ReferralScreen: React.FC = () => {
                     {/* ── Referral History ── */}
                     <SecLabel text="Referral History" />
                     <View style={styles.card}>
-                        {referrals.length === 0 ? (
+                        {history.length === 0 ? (
                             <Text style={styles.emptyText}>No referrals yet. Share your code to get started!</Text>
-                        ) : referrals.map((r, i) => (
+                        ) : history.map((r, i) => (
                             <View
-                                key={i}
+                                key={r.id}
                                 style={[
                                     styles.refRow,
-                                    i < referrals.length - 1 && styles.refRowBorder,
+                                    i < history.length - 1 && styles.refRowBorder,
                                 ]}
                             >
                                 <View
@@ -353,12 +361,12 @@ const ReferralScreen: React.FC = () => {
                                             { color: r.status === 'active' ? D.accent2 : D.warn },
                                         ]}
                                     >
-                                        {initials(r.name)}
+                                        {r.referred_user?.initials || initials(r.referred_user?.name)}
                                     </Text>
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={styles.refName}>{r.name}</Text>
-                                    <Text style={styles.refDate}>{fmtShort(r.date)}</Text>
+                                    <Text style={styles.refName}>{r.referred_user?.name || 'Unknown'}</Text>
+                                    <Text style={styles.refDate}>{r.date}</Text>
                                 </View>
                                 <View style={{ alignItems: 'flex-end', gap: 4 }}>
                                     <Text
@@ -367,7 +375,7 @@ const ReferralScreen: React.FC = () => {
                                             { color: r.status === 'active' ? D.accent2 : D.textMuted },
                                         ]}
                                     >
-                                        {r.status === 'active' ? `+${fmtPoints(r.reward)}` : 'Pending'}
+                                        {r.status === 'active' ? `+${fmtPoints(r.points_awarded)}` : 'Pending'}
                                     </Text>
                                     <View
                                         style={[

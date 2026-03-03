@@ -19,7 +19,6 @@ import * as Yup from 'yup';
 import { D } from '../theme/tokens';
 import PrimaryButton from '../components/PrimaryButton';
 import FloatingLabelInput from '../components/FloatingLabelInput';
-import OTPInput from '../components/OTPInput';
 import StepDots from '../components/StepDots';
 
 type RootStackParamList = {
@@ -51,8 +50,8 @@ function SignupScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [step, setStep] = useState<Step>(0);
   const [loading, setLoading] = useState(false);
-  const [otp, setOtp] = useState('');
-  const [otpError, setOtpError] = useState('');
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMessage, setResendMessage] = useState('');
 
   // Form data carried across steps
   const [formData, setFormData] = useState({
@@ -249,36 +248,41 @@ function SignupScreen() {
     }
   };
 
-  // ── Step 2 OTP verify ──
-  const handleVerifyOtp = async () => {
-    if (otp.length < 6) { setOtpError('Enter the complete 6-digit code.'); return; }
-    setOtpError('');
-    setLoading(true);
+  // ── Resend verification email ──
+  const handleResendVerification = async () => {
+    setResendLoading(true);
+    setResendMessage('');
     try {
-      await axios.post(`${apiUrl}/auth/verify-email`, { email: formData.email, otp });
+      await axios.post(`${apiUrl}/auth/resend-verification`, { email: formData.email });
+      setResendMessage('Verification email sent! Please check your inbox.');
       Dialog.show({
         type: ALERT_TYPE.SUCCESS,
-        title: 'Account Created!',
-        textBody: 'Your account has been verified. You can now sign in.',
-        button: 'Sign In',
+        title: 'Email Sent',
+        textBody: 'A new verification link has been sent to your email.',
+        button: 'OK',
       });
-      navigation.navigate('Signin');
     } catch (error: any) {
-      const msg = error.response?.data?.message || 'Invalid or expired code.';
-      setOtpError(msg);
+      const msg = error.response?.data?.message || 'Failed to resend verification email.';
+      setResendMessage(msg);
+      Dialog.show({
+        type: ALERT_TYPE.DANGER,
+        title: 'Error',
+        textBody: msg,
+        button: 'Close',
+      });
     } finally {
-      setLoading(false);
+      setResendLoading(false);
     }
   };
 
   const updateField = (key: keyof typeof formData) => (val: string) =>
     setFormData(p => ({ ...p, [key]: val }));
 
-  const stepTitles = ['Your info', 'Set password', 'Verify email'];
+  const stepTitles = ['Your info', 'Set password', 'Check your email'];
   const stepSubtitles = [
     'Tell us a bit about yourself',
     'Choose a secure password',
-    `We sent a code to ${formData.email}`,
+    'Verify your account to get started',
   ];
 
   return (
@@ -391,17 +395,31 @@ function SignupScreen() {
             </>
           )}
 
-          {/* ── Step 2: OTP ── */}
+          {/* ── Step 2: Check Email ── */}
           {step === 2 && (
             <>
-              <OTPInput value={otp} onChange={setOtp} />
-              {otpError ? <Text style={styles.otpError}>{otpError}</Text> : null}
-              <View style={{ height: 24 }} />
-              <PrimaryButton label="Verify & Finish" onPress={handleVerifyOtp} loading={loading} />
-              <TouchableOpacity onPress={handleStep2} style={styles.resendBtn}>
-                <Text style={styles.resendText}>
-                  Didn't receive it? <Text style={styles.resendLink}>Resend</Text>
+              <View style={styles.emailSentContainer}>
+                <Text style={styles.emailIcon}>📧</Text>
+                <Text style={styles.emailSentTitle}>Verification Link Sent!</Text>
+                <Text style={styles.emailSentText}>
+                  We've sent a verification link to{' '}
+                  <Text style={styles.emailHighlight}>{formData.email}</Text>
                 </Text>
+                <Text style={styles.emailInstructions}>
+                  Please check your inbox and click the link to verify your account. Don't forget to check your spam folder.
+                </Text>
+              </View>
+              {resendMessage ? (
+                <Text style={styles.resendMessage}>{resendMessage}</Text>
+              ) : null}
+              <View style={{ height: 16 }} />
+              <PrimaryButton
+                label="Resend Verification Email"
+                onPress={handleResendVerification}
+                loading={resendLoading}
+              />
+              <TouchableOpacity onPress={() => navigation.navigate('Signin')} style={styles.goToSigninBtn}>
+                <Text style={styles.goToSigninText}>Go to Sign In</Text>
               </TouchableOpacity>
             </>
           )}
@@ -503,23 +521,52 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  otpError: {
-    color: D.danger,
-    fontSize: 13,
-    marginTop: 8,
+  emailSentContainer: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  emailIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  emailSentTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: D.textPrimary,
+    marginBottom: 12,
     textAlign: 'center',
   },
-  resendBtn: {
+  emailSentText: {
+    fontSize: 15,
+    color: D.textSecondary,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emailHighlight: {
+    color: D.accent,
+    fontWeight: '600',
+  },
+  emailInstructions: {
+    fontSize: 13,
+    color: D.textMuted,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  resendMessage: {
+    color: D.accent,
+    fontSize: 13,
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  goToSigninBtn: {
     marginTop: 16,
     alignItems: 'center',
+    paddingVertical: 12,
   },
-  resendText: {
-    color: D.textMuted,
-    fontSize: 14,
-  },
-  resendLink: {
+  goToSigninText: {
     color: D.accent,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '600',
   },
   signinPrompt: {
     textAlign: 'center',
