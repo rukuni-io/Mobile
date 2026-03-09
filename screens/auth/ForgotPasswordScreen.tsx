@@ -16,11 +16,11 @@ import axios from 'axios';
 import Constants from 'expo-constants';
 import { ALERT_TYPE, Dialog } from 'react-native-alert-notification';
 import { Ionicons } from '@expo/vector-icons';
-import { D } from '../theme/tokens';
-import PrimaryButton from '../components/PrimaryButton';
-import FloatingLabelInput from '../components/FloatingLabelInput';
-import OTPInput from '../components/OTPInput';
-import StepDots from '../components/StepDots';
+import { D } from '../../theme/tokens';
+import PrimaryButton from '../../components/PrimaryButton';
+import FloatingLabelInput from '../../components/FloatingLabelInput';
+import OTPInput from '../../components/OTPInput';
+import StepDots from '../../components/StepDots';
 
 type RootStackParamList = {
   ForgotPassword: undefined;

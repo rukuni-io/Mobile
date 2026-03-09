@@ -10,8 +10,9 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { D } from '../theme/tokens';
-import PrimaryButton from '../components/PrimaryButton';
+import Constants from 'expo-constants';
+import { D } from '../../theme/tokens';
+import PrimaryButton from '../../components/PrimaryButton';
 
 type RootStackParamList = {
   Splash: undefined;
@@ -91,7 +92,7 @@ export default function SplashScreen() {
 
       {/* Title */}
       <Animated.View style={{ opacity: heroOpacity }}>
-        <Text style={styles.appName}>GroupSave</Text>
+        <Text style={styles.appName}>{Constants.expoConfig?.extra?.appName}</Text>
         <Text style={styles.tagline}>Save smarter,{'\n'}achieve together.</Text>
       </Animated.View>
 

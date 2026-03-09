@@ -9,24 +9,31 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import SessionExpiryModal from './components/SessionExpiryModal';
 
-import HomeScreen from './screens/HomeScreen';
-import SplashScreen from './screens/SplashScreen';
-import OnboardingScreen from './screens/OnboardingScreen';
-import SigninScreen from './screens/SigninScreen';
-import SignupScreen from './screens/SignupScreen';
-import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
-import DashboardScreen from './screens/auth/user/DashboardScreen';
-import CreateGroupScreen from './screens/auth/user/groups/CreateGroupScreen';
-import GroupDetailsScreen from './screens/auth/user/groups/GroupDetailsScreen';
-import NotificationsScreen from './screens/auth/user/NotificationsScreen';
-import NotificationDetailScreen from './screens/auth/user/NotificationDetailScreen';
-import ProfileScreen from './screens/auth/user/ProfileScreen';
-import ReferralScreen from './screens/auth/user/ReferralScreen';
-import SettingsScreen from './screens/auth/user/SettingsScreen';
-import SupportScreen from './screens/auth/user/SupportScreen';
+// Auth Screens
+import SigninScreen from './screens/auth/SigninScreen';
+import SignupScreen from './screens/auth/SignupScreen';
+import ForgotPasswordScreen from './screens/auth/ForgotPasswordScreen';
+
+// Onboarding Screens
+import SplashScreen from './screens/onboarding/SplashScreen';
+import OnboardingScreen from './screens/onboarding/OnboardingScreen';
+
+// Main Screens
+import DashboardScreen from './screens/main/DashboardScreen';
+import ProfileScreen from './screens/main/ProfileScreen';
+import SettingsScreen from './screens/main/SettingsScreen';
+import ReferralScreen from './screens/main/ReferralScreen';
+import SupportScreen from './screens/main/SupportScreen';
+
+// Notification Screens
+import NotificationsScreen from './screens/main/notifications/NotificationsScreen';
+import NotificationDetailScreen from './screens/main/notifications/NotificationDetailScreen';
+
+// Group Screens
+import CreateGroupScreen from './screens/main/groups/CreateGroupScreen';
+import GroupDetailsScreen from './screens/main/groups/GroupDetailsScreen';
 
 type RootStackParamList = {
-  Home: undefined;
   Splash: undefined;
   Onboarding: undefined;
   Signin: undefined;
@@ -106,7 +113,6 @@ const AppContent: React.FC = () => {
             screenOptions={{ headerShown: false }}
             initialRouteName={isAuthenticated ? "Dashboard" : "Splash"}
           >
-            <Stack.Screen name="Home" component={HomeScreen} />
             <Stack.Screen name="Splash" component={SplashScreen} />
             <Stack.Screen name="Onboarding" component={OnboardingScreen} />
             <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />

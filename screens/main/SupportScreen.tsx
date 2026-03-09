@@ -21,9 +21,13 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import Constants from 'expo-constants';
-import { D } from '../../../theme/tokens';
+import { D } from '../../theme/tokens';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// ─── App Configuration ────────────────────────────────────────────────────────
+const APP_NAME = Constants.expoConfig?.extra?.appName ?? 'GroupSave';
+const SUPPORT_EMAIL = Constants.expoConfig?.extra?.supportEmail ?? 'support@groupsave.app';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -57,7 +61,7 @@ type ScreenType = 'hub' | 'category' | 'new-ticket' | 'my-tickets' | 'ticket-det
 
 // ─── API Configuration ────────────────────────────────────────────────────────
 
-const API_BASE_URL = Constants.expoConfig?.extra?.apiBaseUrl ?? 'https://api.groupsave.app/api';
+const API_BASE_URL = Constants.expoConfig?.extra?.apiUrl ?? 'https://api.groupsave.app/api';
 
 // Helper to get auth headers
 const getAuthHeaders = async () => {
@@ -157,7 +161,7 @@ const CATEGORIES_FALLBACK: Category[] = [
       { q: 'How do I reset my password?', a: "Tap 'Forgot password?' on the sign-in screen. Enter your registered email and we'll send a 6-digit reset code. Enter the code and choose a new password. The code expires in 24 hours." },
       { q: 'How do I verify my email?', a: "After signing up, check your inbox for a verification email. Click the link or enter the 6-digit code. If not received, tap 'Resend code' on the verification screen." },
       { q: 'How do I enable Two-Factor Authentication?', a: 'Go to Profile → Settings → Security → Two-Factor Auth. Link your mobile number or authenticator app. 2FA is strongly recommended for protecting your savings.' },
-      { q: 'I see a suspicious login — what do I do?', a: "Immediately change your password via Profile → Security. Then contact support@groupsave.app flagged 'Urgent – Security'. We'll investigate and freeze the account if needed." },
+      { q: 'I see a suspicious login — what do I do?', a: `Immediately change your password via Profile → Security. Then contact ${SUPPORT_EMAIL} flagged 'Urgent – Security'. We'll investigate and freeze the account if needed.` },
       { q: 'How do I change my email or phone number?', a: 'Go to Profile → Edit Profile. Update your email or mobile. A verification code will confirm the change before it takes effect.' },
     ],
   },
@@ -185,8 +189,8 @@ const CATEGORIES_FALLBACK: Category[] = [
     desc: 'Making payments, failed transactions, disputes',
     articles: [
       { q: 'How do I make my monthly contribution?', a: "Go to your group → Tap 'Pay Now'. Select your payment method and confirm. You'll receive a confirmation email and group progress updates immediately." },
-      { q: 'My payment failed — what do I do?', a: 'Check your bank details and ensure sufficient funds. Try again after a few minutes. If it continues, contact support@groupsave.app with your transaction reference number.' },
-      { q: 'I was charged twice — how do I get a refund?', a: "Email support@groupsave.app with subject 'Duplicate Payment'. Attach your bank statement. Our team investigates within 48 hours and processes refunds within 3–5 business days." },
+      { q: 'My payment failed — what do I do?', a: `Check your bank details and ensure sufficient funds. Try again after a few minutes. If it continues, contact ${SUPPORT_EMAIL} with your transaction reference number.` },
+      { q: 'I was charged twice — how do I get a refund?', a: `Email ${SUPPORT_EMAIL} with subject 'Duplicate Payment'. Attach your bank statement. Our team investigates within 48 hours and processes refunds within 3–5 business days.` },
       { q: 'Can I pay early?', a: "Yes! Early payments are accepted any time. Your contribution is reflected immediately in the group's progress dashboard with the correct timestamp." },
     ],
   },
@@ -213,7 +217,7 @@ const CATEGORIES_FALLBACK: Category[] = [
     desc: 'Alerts, reminders & notification settings',
     articles: [
       { q: 'How do I manage my notifications?', a: 'Go to Profile → Settings → Notifications. Toggle push, email, and SMS individually. Control payment reminders, group updates, and invitation alerts separately.' },
-      { q: "I'm not receiving email notifications", a: 'Check your spam/junk folder. Add support@groupsave.app to your contacts. Ensure your email is verified in Profile → Settings.' },
+      { q: "I'm not receiving email notifications", a: `Check your spam/junk folder. Add ${SUPPORT_EMAIL} to your contacts. Ensure your email is verified in Profile → Settings.` },
       { q: 'Can I set custom payment reminders?', a: 'Yes. In Settings → Notifications → Payment Reminders, choose 1, 3, or 7 days before your payment is due.' },
     ],
   },
@@ -227,7 +231,7 @@ const CATEGORIES_FALLBACK: Category[] = [
     articles: [
       { q: 'The app keeps crashing', a: 'Force close and reopen. Check for updates in the App Store / Play Store. Uninstall and reinstall if needed. Contact support with your device model and OS version.' },
       { q: "My dashboard data isn't syncing", a: 'Pull down to refresh. Log out and back in. If data mismatch persists after 24 hours, open a ticket with a screenshot of the incorrect data.' },
-      { q: 'My account is suspended', a: "Suspensions are triggered by suspicious activity or policy violations. Email support@groupsave.app with subject 'Suspension Appeal'. We review within 24 hours." },
+      { q: 'My account is suspended', a: `Suspensions are triggered by suspicious activity or policy violations. Email ${SUPPORT_EMAIL} with subject 'Suspension Appeal'. We review within 24 hours.` },
     ],
   },
   {
@@ -238,9 +242,9 @@ const CATEGORIES_FALLBACK: Category[] = [
     grad: ['#2d0808', '#1a0404'] as const,
     desc: 'Report fraud, disputes & suspicious activity',
     articles: [
-      { q: 'How do I report a fraudulent group admin?', a: "Email support@groupsave.app immediately. Subject: 'URGENT – Fraud Report'. Include the group name, admin email, and description. Our compliance team responds within 6 hours." },
-      { q: "What is GroupSave's fraud monitoring policy?", a: 'We employ automated suspicious activity monitoring. High-risk actions trigger manual review. All transactions are logged, timestamped, and auditable by our compliance team.' },
-      { q: 'What if my identity was misused?', a: "Contact us immediately at support@groupsave.app. We'll freeze the affected account, investigate, and work with you to restore access and resolve any financial impact." },
+      { q: 'How do I report a fraudulent group admin?', a: `Email ${SUPPORT_EMAIL} immediately. Subject: 'URGENT – Fraud Report'. Include the group name, admin email, and description. Our compliance team responds within 6 hours.` },
+      { q: "What is the app's fraud monitoring policy?", a: 'We employ automated suspicious activity monitoring. High-risk actions trigger manual review. All transactions are logged, timestamped, and auditable by our compliance team.' },
+      { q: 'What if my identity was misused?', a: `Contact us immediately at ${SUPPORT_EMAIL}. We'll freeze the affected account, investigate, and work with you to restore access and resolve any financial impact.` },
     ],
   },
 ];
@@ -592,7 +596,7 @@ const HubView: React.FC<HubProps> = ({ nav, insets }) => {
             <SecLabel text="Contact Us" />
             <Card style={{ padding: 0, overflow: 'hidden' }}>
               {[
-                { icon: '📧', label: 'Email Support', sub: 'support@groupsave.app', note: '24–48hr', color: D.accent, act: true },
+                { icon: '📧', label: 'Email Support', sub: SUPPORT_EMAIL, note: '24–48hr', color: D.accent, act: true },
                 { icon: '💬', label: 'Live Chat', sub: 'Real-time assistance', note: 'Coming soon', color: D.accent2, act: false },
                 { icon: '🚨', label: 'Critical Escalation', sub: 'Payment or security issues', note: '6–12hr', color: D.danger, act: true },
               ].map((c, i, arr) => (
@@ -685,7 +689,7 @@ const HubView: React.FC<HubProps> = ({ nav, insets }) => {
               ))}
             </Card>
 
-            <Text style={styles.footerText}>GroupSave v1.0.0 · support@groupsave.app</Text>
+            <Text style={styles.footerText}>{APP_NAME} v1.0.0 · {SUPPORT_EMAIL}</Text>
           </>
         )}
       </View>
@@ -964,7 +968,7 @@ const NewTicketView: React.FC<NewTicketViewProps> = ({ onBack, onSubmitted, defa
             <View style={{ flex: 1 }}>
               <Text style={styles.attachmentTitle}>Attach screenshots</Text>
               <Text style={styles.attachmentSub}>
-                Screenshots help us resolve faster. Email them to support@groupsave.app after submission, quoting your
+                Screenshots help us resolve faster. Email them to {SUPPORT_EMAIL} after submission, quoting your
                 ticket ID.
               </Text>
             </View>

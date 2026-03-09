@@ -26,8 +26,8 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import axios from "axios";
 import Constants from "expo-constants";
 
-import MenuActionSheet from "../../../components/MenuActionSheet";
-import { semanticColors } from "../../../theme/semanticColors";
+import MenuActionSheet from "../../components/MenuActionSheet";
+import { semanticColors } from "../../theme/semanticColors";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

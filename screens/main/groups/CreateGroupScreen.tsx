@@ -22,7 +22,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ALERT_TYPE, Dialog } from "react-native-alert-notification";
 import { LinearGradient } from 'expo-linear-gradient';
 import Constants from 'expo-constants';
-import { D } from '../../../../theme/tokens';
+import { D } from '../../../theme/tokens';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 

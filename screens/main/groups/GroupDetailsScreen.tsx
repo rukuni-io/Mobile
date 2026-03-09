@@ -19,7 +19,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
-import { semanticColors } from '../../../../theme/semanticColors';
+import { semanticColors } from '../../../theme/semanticColors';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 

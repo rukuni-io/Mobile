@@ -20,7 +20,7 @@ import axios from 'axios';
 import Constants from 'expo-constants';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Toast from 'react-native-toast-message';
-import { D } from '../../../theme/tokens';
+import { D } from '../../theme/tokens';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type RootStackParamList = { Dashboard: undefined };
@@ -171,7 +171,7 @@ const ReferralScreen: React.FC = () => {
         if (method === 'Share') {
             try {
                 await Share.share({
-                    message: `Join GroupSave and save together! Use my referral code: ${referralCode}`,
+                    message: `Join ${Constants.expoConfig?.extra?.appName} and save together! Use my referral code: ${referralCode}`,
                 });
             } catch {}
             return;
@@ -213,7 +213,7 @@ const ReferralScreen: React.FC = () => {
                             <Text style={styles.headerSub}>
                                 Earn{' '}
                                 <Text style={{ color: '#fff', fontWeight: '800' }}>10 points</Text>
-                                {' '}for every friend who joins GroupSave
+                                {' '}for every friend who joins {Constants.expoConfig?.extra?.appName}
                             </Text>
                             {/* Mini stats */}
                             <View style={styles.headerStats}>
@@ -405,7 +405,7 @@ const ReferralScreen: React.FC = () => {
                     <View style={styles.card}>
                         {[
                             { n: 1, icon: '🔗', text: 'Share your unique code with friends' },
-                            { n: 2, icon: '📝', text: 'They sign up on GroupSave using your code' },
+                            { n: 2, icon: '📝', text: `They sign up on ${Constants.expoConfig?.extra?.appName} using your code` },
                             { n: 3, icon: '✅', text: 'They create or join their first savings group' },
                             { n: 4, icon: '💰', text: '10 points are credited to your account automatically' },
                         ].map((s, idx, arr) => (

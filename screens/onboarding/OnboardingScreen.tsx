@@ -13,9 +13,9 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { D } from '../theme/tokens';
-import PrimaryButton from '../components/PrimaryButton';
-import StepDots from '../components/StepDots';
+import { D } from '../../theme/tokens';
+import PrimaryButton from '../../components/PrimaryButton';
+import StepDots from '../../components/StepDots';
 
 type RootStackParamList = {
   Onboarding: undefined;

@@ -15,7 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import Toast from "react-native-toast-message";
-import { D } from "../../../theme/tokens";
+import { D } from "../../theme/tokens";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type RootStackParamList = { Dashboard: undefined };

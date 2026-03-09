@@ -20,7 +20,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Toast from 'react-native-toast-message';
 import axios from 'axios';
 import Constants from 'expo-constants';
-import { D } from '../../../theme/tokens';
+import { D } from '../../theme/tokens';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type RootStackParamList = {

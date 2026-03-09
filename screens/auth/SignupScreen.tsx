@@ -16,10 +16,10 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
 import * as Yup from 'yup';
-import { D } from '../theme/tokens';
-import PrimaryButton from '../components/PrimaryButton';
-import FloatingLabelInput from '../components/FloatingLabelInput';
-import StepDots from '../components/StepDots';
+import { D } from '../../theme/tokens';
+import PrimaryButton from '../../components/PrimaryButton';
+import FloatingLabelInput from '../../components/FloatingLabelInput';
+import StepDots from '../../components/StepDots';
 
 type RootStackParamList = {
   Signin: undefined;
@@ -294,7 +294,7 @@ function SignupScreen() {
         <View style={styles.circle1} />
         <View style={styles.circle2} />
         <Text style={styles.heroEmoji}>✨</Text>
-        <Text style={styles.appName}>GroupSave</Text>
+        <Text style={styles.appName}>{Constants.expoConfig?.extra?.appName}</Text>
         <Text style={styles.heroSubtitle}>Create your account</Text>
       </LinearGradient>
 

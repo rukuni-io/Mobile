@@ -18,10 +18,10 @@ import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { ALERT_TYPE, Dialog } from 'react-native-alert-notification';
 import Constants from 'expo-constants';
-import { D } from '../theme/tokens';
-import PrimaryButton from '../components/PrimaryButton';
-import FloatingLabelInput from '../components/FloatingLabelInput';
-import { useAuth } from '../context/AuthContext';
+import { D } from '../../theme/tokens';
+import PrimaryButton from '../../components/PrimaryButton';
+import FloatingLabelInput from '../../components/FloatingLabelInput';
+import { useAuth } from '../../context/AuthContext';
 
 
 type RootStackParamList = {
@@ -86,7 +86,7 @@ const SigninScreen: React.FC = () => {
         <View style={styles.circle1} />
         <View style={styles.circle2} />
         <Text style={styles.heroEmoji}>🔐</Text>
-        <Text style={styles.appName}>GroupSave</Text>
+        <Text style={styles.appName}>{Constants.expoConfig?.extra?.appName}</Text>
         <Text style={styles.heroSubtitle}>Sign in to continue</Text>
       </LinearGradient>
 
