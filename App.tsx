@@ -176,7 +176,7 @@ const AppContent: React.FC = () => {
       <SessionExpiryModal
         visible={showSessionExpiry}
         countdown={countdownSeconds}
-        onStayLoggedIn={refreshToken}
+        onStayLoggedIn={async () => { await refreshToken(); }}
         onLogout={() => handleLogout(false)}
       />
     </>
