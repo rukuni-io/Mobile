@@ -21,3 +21,6 @@ export { default as NotificationDetailScreen } from './main/notifications/Notifi
 // Group Screens
 export { default as CreateGroupScreen } from './main/groups/CreateGroupScreen';
 export { default as GroupDetailsScreen } from './main/groups/GroupDetailsScreen';
+
+// Plan Screens
+export { default as PlanPickerScreen } from './main/PlanPickerScreen';

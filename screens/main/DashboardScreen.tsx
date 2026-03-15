@@ -38,6 +38,7 @@ type RootStackParamList = {
     Dashboard: undefined;
     CreateGroup: undefined;
     GroupDetails: { group_id: number };
+    PlanPicker: undefined;
 };
 
 interface Group {
@@ -71,6 +72,7 @@ interface DashboardResponse {
     user_groups?: Group[];
     stats?: DashboardStats;
     user?: User;
+    plan?: string; // 'No active plan' or plan name e.g. 'Growth'
 }
 
 interface StatCardConfig {
@@ -318,6 +320,34 @@ const EmptyState: React.FC<{ message: string }> = ({ message }) => (
     </View>
 );
 
+// ─── No-Active-Plan Banner ────────────────────────────────────────────────────
+
+const NoPlanBanner: React.FC<{ onPress: () => void }> = ({ onPress }) => (
+    <TouchableOpacity
+        activeOpacity={0.88}
+        onPress={onPress}
+        style={styles.noPlanCard}
+    >
+        <LinearGradient
+            colors={["#ffa94d", "#e07a10"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.noPlanGradient}
+        >
+            <View style={styles.noPlanIconWrap}>
+                <Text style={styles.noPlanIcon}>⚡</Text>
+            </View>
+            <View style={styles.noPlanTextBlock}>
+                <Text style={styles.noPlanTitle}>No active plan</Text>
+                <Text style={styles.noPlanSubtitle}>
+                    Unlock unlimited groups, smart reminders &amp; more
+                </Text>
+            </View>
+            <Text style={styles.noPlanCta}>View plans →</Text>
+        </LinearGradient>
+    </TouchableOpacity>
+);
+
 const TabHeader: React.FC<{
     activeTab: TabType;
     onTabChange: (tab: TabType) => void;
@@ -470,6 +500,7 @@ const useDashboardData = (
     const [topGroups, setTopGroups] = useState<Group[]>([]);
     const [myGroups, setMyGroups] = useState<Group[]>([]);
     const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [activePlanName, setActivePlanName] = useState<string>('No active plan');
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const lastFetchRef = useRef<number>(0);
@@ -487,10 +518,11 @@ const useDashboardData = (
                 if (userData) setUser(JSON.parse(userData));
                 
                 if (cachedData) {
-                    const { topGroups: cached_topGroups, myGroups: cached_myGroups, stats: cached_stats } = JSON.parse(cachedData);
+                    const { topGroups: cached_topGroups, myGroups: cached_myGroups, stats: cached_stats, plan: cached_plan } = JSON.parse(cachedData);
                     setTopGroups(cached_topGroups || []);
                     setMyGroups(cached_myGroups || []);
                     setStats(cached_stats || null);
+                    if (cached_plan) setActivePlanName(cached_plan);
                     setLoading(false); // Hide loading immediately if we have cache
                 }
             } catch (error) {
@@ -544,11 +576,13 @@ const useDashboardData = (
                     user_groups = [],
                     stats: dashboardStats = {},
                     user: apiUser = null,
+                    plan: planName = 'No active plan',
                 } = response.data;
 
                 setTopGroups(suggested_groups);
                 setMyGroups(user_groups);
                 setStats(dashboardStats);
+                setActivePlanName(planName);
                 if (apiUser) setUser(apiUser);
                 
                 // Update last fetch timestamp
@@ -557,7 +591,7 @@ const useDashboardData = (
                 // Cache the data for instant loading next time
                 await AsyncStorage.setItem(
                     CACHE_KEYS.DASHBOARD_DATA,
-                    JSON.stringify({ topGroups: suggested_groups, myGroups: user_groups, stats: dashboardStats })
+                    JSON.stringify({ topGroups: suggested_groups, myGroups: user_groups, stats: dashboardStats, plan: planName })
                 );
             } catch (error: any) {
                 if (error.response?.status === 401) {
@@ -594,6 +628,7 @@ const useDashboardData = (
         topGroups,
         myGroups,
         stats,
+        activePlanName,
         loading,
         refreshing,
         refetch: () => fetchData(true, true), // Force refresh on pull-to-refresh
@@ -614,6 +649,7 @@ const DashboardScreen: React.FC = () => {
         topGroups,
         myGroups,
         stats,
+        activePlanName,
         loading,
         refreshing,
         refetch,
@@ -716,6 +752,11 @@ const DashboardScreen: React.FC = () => {
                     }
                 >
                     <StatsCarousel stats={stats} />
+
+                    {/* No-active-plan alert card */}
+                    {activePlanName === 'No active plan' && (
+                        <NoPlanBanner onPress={() => navigation.navigate('PlanPicker')} />
+                    )}
 
                     <Text style={[styles.sectionTitle, styles.boldText]}>Groups</Text>
 
@@ -1102,6 +1143,62 @@ const styles = StyleSheet.create({
         textAlign: "center",
         marginBottom: 10,
         fontWeight: "500",
+    },
+
+    // ── No-active-plan banner ────────────────────────────────────────────────
+    noPlanCard: {
+        marginHorizontal: 20,
+        marginBottom: 16,
+        borderRadius: 16,
+        overflow: "hidden",
+        ...Platform.select({
+            ios: {
+                shadowColor:   "#ffa94d",
+                shadowOffset:  { width: 0, height: 4 },
+                shadowOpacity: 0.35,
+                shadowRadius:  12,
+            },
+            android: { elevation: 6 },
+        }),
+    },
+    noPlanGradient: {
+        flexDirection:  "row",
+        alignItems:     "center",
+        paddingVertical:   14,
+        paddingHorizontal: 16,
+        gap:            12,
+    },
+    noPlanIconWrap: {
+        width:          38,
+        height:         38,
+        borderRadius:   12,
+        backgroundColor: "rgba(255,255,255,0.20)",
+        alignItems:     "center",
+        justifyContent: "center",
+        flexShrink:     0,
+    },
+    noPlanIcon: {
+        fontSize: 18,
+    },
+    noPlanTextBlock: {
+        flex: 1,
+    },
+    noPlanTitle: {
+        fontSize:   14,
+        fontWeight: "800",
+        color:      "#fff",
+        marginBottom: 2,
+    },
+    noPlanSubtitle: {
+        fontSize:   11,
+        color:      "rgba(255,255,255,0.80)",
+        lineHeight: 15,
+    },
+    noPlanCta: {
+        fontSize:   12,
+        fontWeight: "700",
+        color:      "#fff",
+        flexShrink: 0,
     },
 });
 

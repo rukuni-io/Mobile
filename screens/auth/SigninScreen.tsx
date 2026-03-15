@@ -29,6 +29,7 @@ type RootStackParamList = {
   Signup: undefined;
   Dashboard: undefined;
   ForgotPassword: undefined;
+  PlanPicker: undefined;
 };
 
 const validationSchema = Yup.object({
@@ -64,8 +65,13 @@ const SigninScreen: React.FC = () => {
         // Update auth context state
         setIsAuthenticated(true);
         await setupExpirationTimer();
-        
-        navigation.reset({ index: 0, routes: [{ name: 'Dashboard' }] });
+
+        // Show plan picker on the first login of each day
+        const today = new Date().toISOString().split('T')[0];
+        const lastLoginDate = await AsyncStorage.getItem('lastLoginDate');
+        await AsyncStorage.setItem('lastLoginDate', today);
+        const routeName = lastLoginDate !== today ? 'PlanPicker' : 'Dashboard';
+        navigation.reset({ index: 0, routes: [{ name: routeName }] });
       } else {
         Dialog.show({ type: ALERT_TYPE.DANGER, title: 'Sign In Error', textBody: 'Invalid response from server', button: 'Close' });
       }

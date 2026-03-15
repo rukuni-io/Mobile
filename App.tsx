@@ -33,6 +33,9 @@ import NotificationDetailScreen from './screens/main/notifications/NotificationD
 import CreateGroupScreen from './screens/main/groups/CreateGroupScreen';
 import GroupDetailsScreen from './screens/main/groups/GroupDetailsScreen';
 
+// Plan Screens
+import PlanPickerScreen from './screens/main/PlanPickerScreen';
+
 type RootStackParamList = {
   Splash: undefined;
   Onboarding: undefined;
@@ -40,6 +43,7 @@ type RootStackParamList = {
   Signup: undefined;
   ForgotPassword: undefined;
   Dashboard: undefined;
+  PlanPicker: undefined;
   CreateGroup: undefined;
   GroupDetails: undefined;
   Notifications: undefined;
@@ -121,6 +125,11 @@ const AppContent: React.FC = () => {
             <Stack.Screen
               name="Dashboard"
               component={DashboardScreen}
+              options={{ gestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="PlanPicker"
+              component={PlanPickerScreen}
               options={{ gestureEnabled: false }}
             />
             <Stack.Screen
