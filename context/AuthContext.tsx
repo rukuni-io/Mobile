@@ -90,17 +90,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const handleLogout = useCallback(async (showMessage: boolean = true) => {
     clearAllTimers();
     dismissSessionExpiry();
-    
-    await AsyncStorage.multiRemove(['token', 'user', 'tokenExpiresAt']);
-    setIsAuthenticated(false);
 
-    // Navigate to Signin
-    if (navigationRef.current?.isReady()) {
-      navigationRef.current.reset({
-        index: 0,
-        routes: [{ name: 'Signin' }],
-      });
-    }
+    await AsyncStorage.multiRemove(['token', 'user', 'tokenExpiresAt']);
+
+    // Setting this to false triggers the reactive navigation in AppContent
+    setIsAuthenticated(false);
   }, [clearAllTimers, dismissSessionExpiry]);
 
   // Refresh token
@@ -114,9 +108,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return false;
       }
 
-      const response = await axios.post<RefreshTokenResponse>(
-        `${apiUrl}/api/auth/refresh`,
-        {},
+      const response = await axios.get<RefreshTokenResponse>(
+        `${apiUrl}/auth/refresh`,
         {
           headers: {
             Authorization: `Bearer ${currentToken}`,

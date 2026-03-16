@@ -89,12 +89,24 @@ const AppContent: React.FC = () => {
     setNavigationRef,
   } = useAuth();
 
-  // Set navigation ref for auth context
-  useEffect(() => {
+  // Set navigation ref once the container is ready (more reliable than useEffect)
+  const onNavigationReady = useCallback(() => {
     if (navigationRef.current) {
       setNavigationRef(navigationRef.current);
     }
   }, [setNavigationRef]);
+
+  // Reactively navigate to Signin whenever the user becomes unauthenticated
+  // This is the failsafe that makes logout always work regardless of how it
+  // was triggered (manual button, countdown timer, token expiry, etc.)
+  useEffect(() => {
+    if (isAuthenticated === false && navigationRef.current?.isReady()) {
+      navigationRef.current.reset({
+        index: 0,
+        routes: [{ name: 'Signin' }],
+      });
+    }
+  }, [isAuthenticated]);
 
   // Handle navigation state changes to setup timer after login
   const onNavigationStateChange = useCallback(async () => {
@@ -112,7 +124,11 @@ const AppContent: React.FC = () => {
     <>
       <View style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" />
-        <NavigationContainer ref={navigationRef} onStateChange={onNavigationStateChange}>
+        <NavigationContainer
+          ref={navigationRef}
+          onReady={onNavigationReady}
+          onStateChange={onNavigationStateChange}
+        >
           <Stack.Navigator
             screenOptions={{ headerShown: false }}
             initialRouteName={isAuthenticated ? "Dashboard" : "Splash"}
@@ -196,12 +212,12 @@ const AppContent: React.FC = () => {
 
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <AlertNotificationRoot>
+    <AlertNotificationRoot theme="dark">
+      <SafeAreaProvider>
         <AuthProvider>
           <AppContent />
         </AuthProvider>
-      </AlertNotificationRoot>
-    </SafeAreaProvider>
+      </SafeAreaProvider>
+    </AlertNotificationRoot>
   );
 }

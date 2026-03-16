@@ -12,6 +12,7 @@ import {
     Animated,
     ActivityIndicator,
     Dimensions,
+    Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -41,6 +42,48 @@ const getOrdinalSuffix = (n: number): string => {
     return n + (s[(v - 20) % 10] || s[v] || s[0]);
 };
 
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+const FREQUENCY_OPTIONS = [
+    { value: 'daily',   label: 'Daily' },
+    { value: 'weekly',  label: 'Weekly' },
+    { value: 'monthly', label: 'Monthly' },
+];
+
+const getScheduleDates = (
+    startDate: string,
+    frequency: string,
+    payDay: string,
+    weekday: string,
+    count: number,
+): Date[] => {
+    const dates: Date[] = [];
+    const base = new Date(startDate);
+    if (frequency === 'monthly' && payDay) {
+        for (let i = 0; i < count; i++) {
+            const d = new Date(base);
+            d.setMonth(d.getMonth() + i);
+            d.setDate(parseInt(payDay));
+            dates.push(d);
+        }
+    } else if (frequency === 'weekly' && weekday !== '') {
+        const targetDay = parseInt(weekday);
+        const d = new Date(base);
+        while (d.getDay() !== targetDay) d.setDate(d.getDate() + 1);
+        for (let i = 0; i < count; i++) {
+            dates.push(new Date(d));
+            d.setDate(d.getDate() + 7);
+        }
+    } else if (frequency === 'daily') {
+        for (let i = 0; i < count; i++) {
+            const d = new Date(base);
+            d.setDate(d.getDate() + i);
+            dates.push(d);
+        }
+    }
+    return dates;
+};
+
 // ─── Step Configuration ───────────────────────────────────────────────────────
 const STEPS = [
     { id: 1, label: 'Group Info', icon: 'wallet-outline' },
@@ -55,7 +98,9 @@ interface FormState {
     total_users: string;
     target_amount: string;
     expected_start_date: string;
+    contribution_frequency: string;
     payment_out_day: string;
+    payment_out_weekday: string;
     members_emails: string[];
 }
 
@@ -538,7 +583,9 @@ const CreateGroupScreen = () => {
         total_users: '',
         target_amount: '',
         expected_start_date: '',
+        contribution_frequency: '',
         payment_out_day: '',
+        payment_out_weekday: '',
         members_emails: [],
     });
 
@@ -588,13 +635,20 @@ const CreateGroupScreen = () => {
             if (!form.title.trim()) newErrors.title = 'Group name is required';
             if (!form.total_users) newErrors.total_users = 'Number of members is required';
             else if (parseInt(form.total_users) < 2) newErrors.total_users = 'Minimum 2 members required';
+            else if (parseInt(form.total_users) > 300) newErrors.total_users = 'Maximum 300 members allowed';
             if (!form.target_amount) newErrors.target_amount = 'Target amount is required';
-            else if (parseFloat(form.target_amount) <= 0) newErrors.target_amount = 'Must be greater than £0';
+            else if (parseFloat(form.target_amount) < 0) newErrors.target_amount = 'Must be £0 or more';
         }
 
         if (step === 2) {
             if (!form.expected_start_date) newErrors.expected_start_date = 'Start date is required';
-            if (!form.payment_out_day) newErrors.payment_out_day = 'Payment day is required';
+            if (!form.contribution_frequency) newErrors.contribution_frequency = 'Contribution frequency is required';
+            if (form.contribution_frequency === 'monthly' && !form.payment_out_day) {
+                newErrors.payment_out_day = 'Payment day of month is required';
+            }
+            if (form.contribution_frequency === 'weekly' && form.payment_out_weekday === '') {
+                newErrors.payment_out_weekday = 'Payment weekday is required';
+            }
         }
 
         if (step === 3) {
@@ -691,7 +745,13 @@ const CreateGroupScreen = () => {
                 total_users: parseInt(form.total_users),
                 target_amount: parseFloat(form.target_amount),
                 expected_start_date: form.expected_start_date,
-                payment_out_day: parseInt(form.payment_out_day),
+                contribution_frequency: form.contribution_frequency,
+                ...(form.contribution_frequency === 'monthly' && {
+                    payment_out_day: parseInt(form.payment_out_day),
+                }),
+                ...(form.contribution_frequency === 'weekly' && {
+                    payment_out_weekday: parseInt(form.payment_out_weekday),
+                }),
                 members_emails: form.members_emails,
             };
 
@@ -750,7 +810,9 @@ const CreateGroupScreen = () => {
             total_users: '',
             target_amount: '',
             expected_start_date: '',
+            contribution_frequency: '',
             payment_out_day: '',
+            payment_out_weekday: '',
             members_emails: [],
         });
         setStep(1);
@@ -788,12 +850,14 @@ const CreateGroupScreen = () => {
                             </Text>
                         </View>
                         <View style={styles.successRow}>
-                            <Text style={styles.successLabel}>Monthly each</Text>
-                            <Text style={styles.successValue}>{formatCurrency(payable || 0)}</Text>
+                            <Text style={styles.successLabel}>Per {form.contribution_frequency || 'payment'}</Text>
+                            <Text style={[styles.successValue, { color: D.accent }]}>
+                                {formatCurrency(payable || 0)}
+                            </Text>
                         </View>
                         <View style={[styles.successRow, { borderBottomWidth: 0 }]}>
                             <Text style={styles.successLabel}>Duration</Text>
-                            <Text style={styles.successValue}>{form.total_users} months</Text>
+                            <Text style={styles.successValue}>{form.total_users} payments</Text>
                         </View>
                     </View>
 
@@ -886,12 +950,12 @@ const CreateGroupScreen = () => {
                                     />
                                 </Field>
 
-                                <Field label="Number of Members" icon="people-outline" hint="Min. 2" error={errors.total_users}>
+                                <Field label="Number of Members" icon="people-outline" hint="2–300" error={errors.total_users}>
                                     <SelectInput
                                         value={form.total_users}
                                         placeholder="Select total members…"
                                         options={[
-                                            ...Array.from({ length: 11 }, (_, i) => ({
+                                            ...Array.from({ length: 299 }, (_, i) => ({
                                                 value: String(i + 2),
                                                 label: `${i + 2} members`,
                                             })),
@@ -950,7 +1014,7 @@ const CreateGroupScreen = () => {
                                 <View style={styles.tipCard}>
                                     <Ionicons name="calendar-outline" size={18} color={D.accent} />
                                     <Text style={styles.tipText}>
-                                        Choose when payments start and which day of the month each member's contribution is due.
+                                        Choose when payments start, how often members contribute, and the specific day for collection.
                                     </Text>
                                 </View>
 
@@ -976,54 +1040,122 @@ const CreateGroupScreen = () => {
                                     </TouchableOpacity>
                                 </Field>
 
-                                {showDatePicker && (
-                                    <DateTimePicker
-                                        value={form.expected_start_date ? new Date(form.expected_start_date) : new Date()}
-                                        mode="date"
-                                        display="default"
-                                        minimumDate={new Date()}
-                                        onChange={(event, date) => {
-                                            setShowDatePicker(false);
-                                            if (date) {
-                                                updateField('expected_start_date', date.toISOString().split('T')[0]);
-                                            }
-                                        }}
-                                    />
+                                {/* iOS: spinner in a bottom-sheet modal; Android: native calendar dialog */}
+                                {Platform.OS === 'ios' ? (
+                                    <Modal
+                                        visible={showDatePicker}
+                                        transparent
+                                        animationType="slide"
+                                        onRequestClose={() => setShowDatePicker(false)}
+                                    >
+                                        <View style={styles.dateModalOverlay}>
+                                            <View style={styles.dateModalSheet}>
+                                                <View style={styles.dateModalHeader}>
+                                                    <Text style={styles.dateModalTitle}>Select Start Date</Text>
+                                                    <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                                                        <Text style={styles.dateModalDone}>Done</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                                <DateTimePicker
+                                                    value={form.expected_start_date ? new Date(form.expected_start_date) : new Date()}
+                                                    mode="date"
+                                                    display="spinner"
+                                                    minimumDate={(() => { const d = new Date(); d.setDate(d.getDate() + 1); return d; })()}
+                                                    textColor={D.text}
+                                                    style={{ backgroundColor: D.surfaceHi }}
+                                                    onChange={(_, date) => {
+                                                        if (date) {
+                                                            updateField('expected_start_date', date.toISOString().split('T')[0]);
+                                                        }
+                                                    }}
+                                                />
+                                            </View>
+                                        </View>
+                                    </Modal>
+                                ) : (
+                                    showDatePicker && (
+                                        <DateTimePicker
+                                            value={form.expected_start_date ? new Date(form.expected_start_date) : new Date()}
+                                            mode="date"
+                                            display="default"
+                                            minimumDate={(() => { const d = new Date(); d.setDate(d.getDate() + 1); return d; })()}
+                                            onChange={(_, date) => {
+                                                setShowDatePicker(false);
+                                                if (date) {
+                                                    updateField('expected_start_date', date.toISOString().split('T')[0]);
+                                                }
+                                            }}
+                                        />
+                                    )
                                 )}
 
-                                <Field label="Payment Day of Month" icon="time-outline" hint="1–28" error={errors.payment_out_day}>
+                                <Field label="Contribution Frequency" icon="repeat-outline" error={errors.contribution_frequency}>
                                     <SelectInput
-                                        value={form.payment_out_day}
-                                        placeholder="Select payment day…"
-                                        options={[
-                                            ...Array.from({ length: 28 }, (_, i) => ({
-                                                value: String(i + 1),
-                                                label: `${getOrdinalSuffix(i + 1)} of each month`,
-                                            })),
-                                        ]}
-                                        onSelect={(v) => updateField('payment_out_day', v)}
+                                        value={form.contribution_frequency}
+                                        placeholder="Select frequency…"
+                                        options={FREQUENCY_OPTIONS}
+                                        onSelect={(v) => {
+                                            updateField('contribution_frequency', v);
+                                            updateField('payment_out_day', '');
+                                            updateField('payment_out_weekday', '');
+                                        }}
                                     />
                                 </Field>
 
-                                {/* Schedule Preview */}
-                                {form.expected_start_date && form.payment_out_day && (
-                                    <View style={styles.previewCard}>
-                                        <Text style={styles.previewTitle}>SCHEDULE PREVIEW</Text>
-                                        {Array.from({ length: Math.min(3, parseInt(form.total_users) || 3) }).map((_, i) => {
-                                            const date = new Date(form.expected_start_date);
-                                            date.setMonth(date.getMonth() + i);
-                                            date.setDate(parseInt(form.payment_out_day));
-                                            const isFirst = i === 0;
+                                {/* Monthly — day of month */}
+                                {form.contribution_frequency === 'monthly' && (
+                                    <Field label="Payment Day of Month" icon="time-outline" hint="1–31" error={errors.payment_out_day}>
+                                        <SelectInput
+                                            value={form.payment_out_day}
+                                            placeholder="Select payment day…"
+                                            options={Array.from({ length: 31 }, (_, i) => ({
+                                                value: String(i + 1),
+                                                label: `${getOrdinalSuffix(i + 1)} of each month`,
+                                            }))}
+                                            onSelect={(v) => updateField('payment_out_day', v)}
+                                        />
+                                    </Field>
+                                )}
 
-                                            return (
+                                {/* Weekly — day of week */}
+                                {form.contribution_frequency === 'weekly' && (
+                                    <Field label="Payment Weekday" icon="today-outline" error={errors.payment_out_weekday}>
+                                        <SelectInput
+                                            value={form.payment_out_weekday}
+                                            placeholder="Select weekday…"
+                                            options={WEEKDAYS.map((day, i) => ({ value: String(i), label: day }))}
+                                            onSelect={(v) => updateField('payment_out_weekday', v)}
+                                        />
+                                    </Field>
+                                )}
+
+                                {/* Schedule Preview */}
+                                {form.expected_start_date && form.contribution_frequency && (
+                                    form.contribution_frequency === 'daily' ||
+                                    (form.contribution_frequency === 'monthly' && !!form.payment_out_day) ||
+                                    (form.contribution_frequency === 'weekly' && form.payment_out_weekday !== '')
+                                ) && (() => {
+                                    const previewCount = Math.min(3, parseInt(form.total_users) || 3);
+                                    const dates = getScheduleDates(
+                                        form.expected_start_date,
+                                        form.contribution_frequency,
+                                        form.payment_out_day,
+                                        form.payment_out_weekday,
+                                        previewCount,
+                                    );
+                                    const totalPayments = parseInt(form.total_users) || 0;
+                                    return (
+                                        <View style={styles.previewCard}>
+                                            <Text style={styles.previewTitle}>SCHEDULE PREVIEW</Text>
+                                            {dates.map((date, i) => (
                                                 <View key={i} style={styles.scheduleRow}>
                                                     <View style={[
                                                         styles.scheduleNum,
-                                                        isFirst && styles.scheduleNumActive,
+                                                        i === 0 && styles.scheduleNumActive,
                                                     ]}>
                                                         <Text style={[
                                                             styles.scheduleNumText,
-                                                            isFirst && styles.scheduleNumTextActive,
+                                                            i === 0 && styles.scheduleNumTextActive,
                                                         ]}>
                                                             {i + 1}
                                                         </Text>
@@ -1041,15 +1173,15 @@ const CreateGroupScreen = () => {
                                                         </Text>
                                                     </View>
                                                 </View>
-                                            );
-                                        })}
-                                        {parseInt(form.total_users) > 3 && (
-                                            <Text style={styles.scheduleMore}>
-                                                + {parseInt(form.total_users) - 3} more payment{parseInt(form.total_users) - 3 > 1 ? 's' : ''}…
-                                            </Text>
-                                        )}
-                                    </View>
-                                )}
+                                            ))}
+                                            {totalPayments > 3 && (
+                                                <Text style={styles.scheduleMore}>
+                                                    + {totalPayments - 3} more payment{totalPayments - 3 > 1 ? 's' : ''}…
+                                                </Text>
+                                            )}
+                                        </View>
+                                    );
+                                })()}
                             </View>
                         )}
 
@@ -1207,11 +1339,27 @@ const CreateGroupScreen = () => {
                                         })}
                                     />
                                     <SummaryRow
-                                        icon="time-outline"
-                                        label="Payment Day"
-                                        value={`${getOrdinalSuffix(parseInt(form.payment_out_day))} of each month`}
-                                        isLast
+                                        icon="repeat-outline"
+                                        label="Frequency"
+                                        value={form.contribution_frequency.charAt(0).toUpperCase() + form.contribution_frequency.slice(1)}
+                                        isLast={form.contribution_frequency === 'daily'}
                                     />
+                                    {form.contribution_frequency === 'monthly' && (
+                                        <SummaryRow
+                                            icon="time-outline"
+                                            label="Payment Day"
+                                            value={`${getOrdinalSuffix(parseInt(form.payment_out_day))} of the month`}
+                                            isLast
+                                        />
+                                    )}
+                                    {form.contribution_frequency === 'weekly' && (
+                                        <SummaryRow
+                                            icon="today-outline"
+                                            label="Payment Day"
+                                            value={`Every ${WEEKDAYS[parseInt(form.payment_out_weekday)]}`}
+                                            isLast
+                                        />
+                                    )}
                                 </View>
 
                                 {/* Members Summary */}
@@ -1681,6 +1829,37 @@ const styles = StyleSheet.create({
         color: D.textMuted,
         textAlign: 'center',
         marginTop: 14,
+    },
+    // Date picker modal (iOS)
+    dateModalOverlay: {
+        flex: 1,
+        justifyContent: 'flex-end',
+        backgroundColor: 'rgba(0,0,0,0.55)',
+    },
+    dateModalSheet: {
+        backgroundColor: D.surfaceHi,
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        paddingBottom: 30,
+    },
+    dateModalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: D.border,
+    },
+    dateModalTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: D.text,
+    },
+    dateModalDone: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: D.accent,
     },
     // Success styles
     successContainer: {
