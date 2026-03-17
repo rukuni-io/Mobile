@@ -65,6 +65,7 @@ interface DashboardStats {
 interface User {
     name?: string;
     email?: string;
+    plan?: string;
 }
 
 interface DashboardResponse {
@@ -320,6 +321,49 @@ const EmptyState: React.FC<{ message: string }> = ({ message }) => (
     </View>
 );
 
+// ─── Upgrade Banner (free plan) ──────────────────────────────────────────────
+
+const UpgradeBanner: React.FC<{
+    planName: string;
+    onUpgrade: () => void;
+    onDismiss: () => void;
+}> = ({ planName, onUpgrade, onDismiss }) => (
+    <View style={styles.upgradeBannerCard}>
+        <LinearGradient
+            colors={["#2a1d6e", "#1a2a6e"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.upgradeBannerGradient}
+        >
+            <View style={styles.upgradeBannerIconWrap}>
+                <Text style={{ fontSize: 18 }}>⚡</Text>
+            </View>
+            <View style={styles.upgradeBannerTextBlock}>
+                <Text style={styles.upgradeBannerTitle}>
+                    You're on {planName}
+                </Text>
+                <Text style={styles.upgradeBannerSubtitle}>
+                    Upgrade to Growth — unlimited groups &amp; smart reminders
+                </Text>
+            </View>
+            <TouchableOpacity
+                onPress={onUpgrade}
+                style={styles.upgradeBannerCta}
+                activeOpacity={0.8}
+            >
+                <Text style={styles.upgradeBannerCtaText}>Upgrade</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+                onPress={onDismiss}
+                style={styles.upgradeBannerDismiss}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+                <Ionicons name="close" size={16} color="rgba(255,255,255,0.6)" />
+            </TouchableOpacity>
+        </LinearGradient>
+    </View>
+);
+
 // ─── No-Active-Plan Banner ────────────────────────────────────────────────────
 
 const NoPlanBanner: React.FC<{ onPress: () => void }> = ({ onPress }) => (
@@ -490,6 +534,9 @@ const CACHE_KEYS = {
 };
 
 const CACHE_DURATION = 30 * 1000; // 30 seconds - won't refetch if data is newer than this
+const UPGRADE_BANNER_KEY = "upgrade_banner_dismissed_at";
+const UPGRADE_BANNER_SNOOZE_MS = 24 * 60 * 60 * 1000; // 24 hours
+const FREE_PLAN_NAMES = ["starter"]; // lowercase slugs treated as free/upgradeable
 
 // ─── Custom Hooks ─────────────────────────────────────────────────────────────
 
@@ -503,6 +550,7 @@ const useDashboardData = (
     const [activePlanName, setActivePlanName] = useState<string>('No active plan');
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [upgradeBannerVisible, setUpgradeBannerVisible] = useState(false);
     const lastFetchRef = useRef<number>(0);
     const isFetchingRef = useRef<boolean>(false);
 
@@ -510,9 +558,10 @@ const useDashboardData = (
     useEffect(() => {
         const loadCachedData = async () => {
             try {
-                const [cachedData, userData] = await Promise.all([
+                const [cachedData, userData, dismissedAt] = await Promise.all([
                     AsyncStorage.getItem(CACHE_KEYS.DASHBOARD_DATA),
                     AsyncStorage.getItem("user"),
+                    AsyncStorage.getItem(UPGRADE_BANNER_KEY),
                 ]);
                 
                 if (userData) setUser(JSON.parse(userData));
@@ -522,8 +571,15 @@ const useDashboardData = (
                     setTopGroups(cached_topGroups || []);
                     setMyGroups(cached_myGroups || []);
                     setStats(cached_stats || null);
-                    if (cached_plan) setActivePlanName(cached_plan);
-                    setLoading(false); // Hide loading immediately if we have cache
+                    if (cached_plan) {
+                        setActivePlanName(cached_plan);
+                        const isFreePlan = FREE_PLAN_NAMES.includes(cached_plan.toLowerCase());
+                        const snoozed = dismissedAt
+                            ? Date.now() - Number(dismissedAt) < UPGRADE_BANNER_SNOOZE_MS
+                            : false;
+                        if (isFreePlan && !snoozed) setUpgradeBannerVisible(true);
+                    }
+                    setLoading(false);
                 }
             } catch (error) {
                 // Silent fail for cache loading
@@ -576,14 +632,27 @@ const useDashboardData = (
                     user_groups = [],
                     stats: dashboardStats = {},
                     user: apiUser = null,
-                    plan: planName = 'No active plan',
                 } = response.data;
+
+                const planName: string = apiUser?.plan ?? 'No active plan';
 
                 setTopGroups(suggested_groups);
                 setMyGroups(user_groups);
                 setStats(dashboardStats);
                 setActivePlanName(planName);
                 if (apiUser) setUser(apiUser);
+
+                // Re-evaluate upgrade banner visibility with fresh plan
+                const isFreePlan = FREE_PLAN_NAMES.includes(planName.toLowerCase());
+                if (isFreePlan) {
+                    const dismissedAt = await AsyncStorage.getItem(UPGRADE_BANNER_KEY);
+                    const snoozed = dismissedAt
+                        ? Date.now() - Number(dismissedAt) < UPGRADE_BANNER_SNOOZE_MS
+                        : false;
+                    setUpgradeBannerVisible(!snoozed);
+                } else {
+                    setUpgradeBannerVisible(false);
+                }
                 
                 // Update last fetch timestamp
                 lastFetchRef.current = Date.now();
@@ -623,12 +692,19 @@ const useDashboardData = (
         }, [fetchData])
     );
 
+    const dismissUpgradeBanner = useCallback(async () => {
+        setUpgradeBannerVisible(false);
+        await AsyncStorage.setItem(UPGRADE_BANNER_KEY, String(Date.now()));
+    }, []);
+
     return {
         user,
         topGroups,
         myGroups,
         stats,
         activePlanName,
+        upgradeBannerVisible,
+        dismissUpgradeBanner,
         loading,
         refreshing,
         refetch: () => fetchData(true, true), // Force refresh on pull-to-refresh
@@ -650,6 +726,8 @@ const DashboardScreen: React.FC = () => {
         myGroups,
         stats,
         activePlanName,
+        upgradeBannerVisible,
+        dismissUpgradeBanner,
         loading,
         refreshing,
         refetch,
@@ -756,6 +834,15 @@ const DashboardScreen: React.FC = () => {
                     {/* No-active-plan alert card */}
                     {activePlanName === 'No active plan' && (
                         <NoPlanBanner onPress={() => navigation.navigate('PlanPicker')} />
+                    )}
+
+                    {/* Upgrade nudge for free plan users */}
+                    {activePlanName !== 'No active plan' && upgradeBannerVisible && (
+                        <UpgradeBanner
+                            planName={activePlanName}
+                            onUpgrade={() => navigation.navigate('PlanPicker')}
+                            onDismiss={dismissUpgradeBanner}
+                        />
                     )}
 
                     <Text style={[styles.sectionTitle, styles.boldText]}>Groups</Text>
@@ -1198,6 +1285,71 @@ const styles = StyleSheet.create({
         fontSize:   12,
         fontWeight: "700",
         color:      "#fff",
+        flexShrink: 0,
+    },
+
+    // ─── Upgrade Banner ──────────────────────────────────────────────────────────
+    upgradeBannerCard: {
+        marginHorizontal: 20,
+        marginBottom: 16,
+        borderRadius: 16,
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: "rgba(124,140,255,0.25)",
+        ...Platform.select({
+            ios: {
+                shadowColor: "#7c8cff",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 12,
+            },
+            android: { elevation: 5 },
+        }),
+    },
+    upgradeBannerGradient: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingVertical: 13,
+        paddingHorizontal: 14,
+        gap: 10,
+    },
+    upgradeBannerIconWrap: {
+        width: 36,
+        height: 36,
+        borderRadius: 11,
+        backgroundColor: "rgba(124,140,255,0.25)",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+    },
+    upgradeBannerTextBlock: {
+        flex: 1,
+    },
+    upgradeBannerTitle: {
+        fontSize: 13,
+        fontWeight: "800",
+        color: "#fff",
+        marginBottom: 2,
+    },
+    upgradeBannerSubtitle: {
+        fontSize: 10,
+        color: "rgba(255,255,255,0.72)",
+        lineHeight: 14,
+    },
+    upgradeBannerCta: {
+        backgroundColor: "rgba(124,140,255,0.35)",
+        borderRadius: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        flexShrink: 0,
+    },
+    upgradeBannerCtaText: {
+        fontSize: 12,
+        fontWeight: "700",
+        color: "#fff",
+    },
+    upgradeBannerDismiss: {
+        paddingLeft: 6,
         flexShrink: 0,
     },
 });
