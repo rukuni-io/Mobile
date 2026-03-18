@@ -21,6 +21,7 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ALERT_TYPE, Dialog } from "react-native-alert-notification";
+import GroupLimitModal from '../../../components/GroupLimitModal';
 import { LinearGradient } from 'expo-linear-gradient';
 import Constants from 'expo-constants';
 import { D } from '../../../theme/tokens';
@@ -578,6 +579,23 @@ const CreateGroupScreen = () => {
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [userEmail, setUserEmail] = useState('');
 
+    // Group-limit modal state
+    const [limitModal, setLimitModal] = useState<{
+        visible: boolean;
+        planName: string;
+        maxGroups: number;
+        rewardBalance: number;
+        rewardCost: number;
+        redeeming: boolean;
+    }>({
+        visible: false,
+        planName: 'Starter',
+        maxGroups: 1,
+        rewardBalance: 0,
+        rewardCost: 300,
+        redeeming: false,
+    });
+
     const [form, setForm] = useState<FormState>({
         title: '',
         total_users: '',
@@ -781,10 +799,42 @@ const CreateGroupScreen = () => {
                     return;
                 }
 
+                // Detect plan-limit error and show rich modal
+                const msg: string = data.message || data.error || '';
+                const isPlanLimit =
+                    msg.toLowerCase().includes('maximum') ||
+                    msg.toLowerCase().includes('plan allows') ||
+                    msg.toLowerCase().includes('group limit');
+
+                if (isPlanLimit) {
+                    // Attempt to read reward balance from cached user data
+                    let rewardBalance = 0;
+                    try {
+                        const userData = await AsyncStorage.getItem('user');
+                        if (userData) {
+                            const parsed = JSON.parse(userData);
+                            rewardBalance = parsed?.reward_balance ?? parsed?.reward_points ?? 0;
+                        }
+                    } catch { /* silent */ }
+
+                    // Parse plan name & max groups from message if present
+                    const planMatch = msg.match(/(\w+) plan/i);
+                    const numMatch = msg.match(/maximum of (\d+)/i);
+                    setLimitModal({
+                        visible: true,
+                        planName: planMatch ? planMatch[1] : 'Starter',
+                        maxGroups: numMatch ? parseInt(numMatch[1]) : 1,
+                        rewardBalance,
+                        rewardCost: 300,
+                        redeeming: false,
+                    });
+                    return;
+                }
+
                 Dialog.show({
                     type: ALERT_TYPE.DANGER,
                     title: 'Failed to create group',
-                    textBody: data.message || 'An error occurred while creating the group.',
+                    textBody: msg || 'An error occurred while creating the group.',
                     button: 'Close',
                 });
                 return;
@@ -1416,6 +1466,41 @@ const CreateGroupScreen = () => {
                     </Animated.View>
                 </ScrollView>
             </KeyboardAvoidingView>
+
+            {/* Group-limit modal */}
+            <GroupLimitModal
+                visible={limitModal.visible}
+                planName={limitModal.planName}
+                maxGroups={limitModal.maxGroups}
+                rewardBalance={limitModal.rewardBalance}
+                rewardCost={limitModal.rewardCost}
+                redeeming={limitModal.redeeming}
+                onUpgrade={() => {
+                    setLimitModal(m => ({ ...m, visible: false }));
+                    navigation.navigate('PlanPicker' as never);
+                }}
+                onUseRewards={async () => {
+                    setLimitModal(m => ({ ...m, redeeming: true }));
+                    try {
+                        const apiUrl = Constants.expoConfig?.extra?.apiUrl;
+                        const token = await AsyncStorage.getItem('token');
+                        await fetch(`${apiUrl}/user/rewards/redeem-group-slot`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                Accept: 'application/json',
+                                Authorization: `Bearer ${token}`,
+                            },
+                        });
+                        setLimitModal(m => ({ ...m, visible: false, redeeming: false }));
+                        // Re-attempt group creation automatically
+                        handleSubmit();
+                    } catch {
+                        setLimitModal(m => ({ ...m, redeeming: false }));
+                    }
+                }}
+                onDismiss={() => setLimitModal(m => ({ ...m, visible: false }))}
+            />
         </SafeAreaView>
     );
 };
