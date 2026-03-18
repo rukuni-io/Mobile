@@ -87,7 +87,7 @@ const AVATAR_PALETTE = [
     { bg: 'rgba(42, 82, 160, 0.15)',   fg: '#2a52a0' },
 ];
 
-const getAvatarColor = (id: number) => AVATAR_PALETTE[(id || 0) % AVATAR_PALETTE.length];
+const getAvatarColor = (id: number) => AVATAR_PALETTE[Math.abs(id || 0) % AVATAR_PALETTE.length] ?? AVATAR_PALETTE[0];
 
 // ── Notification Type Config ──────────────────────────────────────────────────
 const NOTIF_TYPE_CONFIG: { [key: string]: { icon: string; color: string; colorSoft: string; cta: string } } = {
@@ -257,7 +257,7 @@ const NotifCard = ({
 
                         {/* Footer */}
                         <View style={cardStyles.footer}>
-                            {notif.groupTitle && (
+                            {notif.groupTitle && col && (
                                 <View style={[cardStyles.groupPill, { backgroundColor: col.bg, borderColor: col.fg + '25' }]}>
                                     <Text style={[cardStyles.groupPillText, { color: col.fg }]}>{notif.groupTitle}</Text>
                                 </View>

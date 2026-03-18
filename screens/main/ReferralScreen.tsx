@@ -44,23 +44,10 @@ interface ReferralStats {
     total_points: number;
 }
 
-interface EarningsOverview {
-    total_points: number;
-    points_per_referral: number;
-}
-
-interface Milestone {
-    next_target: number;
-    current_points: number;
-    points_to_go: number;
-    progress_percentage: number;
-}
-
 interface ReferralData {
     referral_code: string;
     stats: ReferralStats;
-    earnings_overview: EarningsOverview;
-    milestone: Milestone;
+    earnings_overview: { total_points: number };
     history: ReferralHistoryItem[];
 }
 
@@ -153,8 +140,6 @@ const ReferralScreen: React.FC = () => {
     const history      = referralData?.history ?? [];
     const active       = referralData?.stats?.active ?? 0;
     const pending      = referralData?.stats?.pending ?? 0;
-    const milestone    = referralData?.milestone?.next_target ?? 50;
-    const progress     = referralData?.milestone?.progress_percentage ?? Math.min((earnings / milestone) * 100, 100);
 
     const handleCopy = useCallback(async () => {
         try {
@@ -276,36 +261,6 @@ const ReferralScreen: React.FC = () => {
                                 {regenerating ? 'Regenerating...' : 'Regenerate Code'}
                             </Text>
                         </TouchableOpacity>
-                    </View>
-
-                    {/* ── Earnings Overview ── */}
-                    <SecLabel text="Earnings Overview" />
-                    <View style={styles.card}>
-                        <View style={styles.earningsRow}>
-                            <View>
-                                <Text style={styles.earningsSubLabel}>Total Earned</Text>
-                                <Text style={[styles.earningsBig, { color: D.success }]}>
-                                    {fmtPoints(earnings)}
-                                </Text>
-                            </View>
-                            <View style={{ alignItems: 'flex-end' }}>
-                                <Text style={styles.earningsSubLabel}>Per Referral</Text>
-                                <Text style={[styles.earningsBig, { color: D.accent }]}>10 pts</Text>
-                            </View>
-                        </View>
-                        <Text style={styles.milestoneLabel}>Progress to {fmtPoints(milestone)} milestone</Text>
-                        <View style={styles.progressTrack}>
-                            <LinearGradient
-                                colors={['#38d9a9', '#20b087']}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 0 }}
-                                style={[styles.progressFill, { width: `${progress}%` as any }]}
-                            />
-                        </View>
-                        <View style={styles.progressLabels}>
-                            <Text style={styles.progressText}>{fmtPoints(earnings)} earned</Text>
-                            <Text style={styles.progressText}>{fmtPoints(milestone - earnings)} to go</Text>
-                        </View>
                     </View>
 
                     {/* ── Share Via ── */}
@@ -522,23 +477,6 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         paddingVertical: 20,
     },
-
-    // Earnings
-    earningsRow: {
-        flexDirection: 'row', justifyContent: 'space-between',
-        marginBottom: 14, paddingBottom: 14,
-        borderBottomWidth: 1, borderBottomColor: D.border,
-    },
-    earningsSubLabel: { fontSize: 12, color: D.textMuted, marginBottom: 3 },
-    earningsBig:      { fontSize: 28, fontWeight: '800' },
-    milestoneLabel:   { fontSize: 12, color: D.textMuted, marginBottom: 8 },
-    progressTrack: {
-        height: 8, backgroundColor: D.border,
-        borderRadius: 4, overflow: 'hidden', marginBottom: 5,
-    },
-    progressFill:   { height: '100%', borderRadius: 4 },
-    progressLabels: { flexDirection: 'row', justifyContent: 'space-between' },
-    progressText:   { fontSize: 11, color: D.textMuted },
 
     // Share
     shareRow: { flexDirection: 'row', gap: 10, marginBottom: 4 },
