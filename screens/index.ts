@@ -24,3 +24,6 @@ export { default as GroupDetailsScreen } from './main/groups/GroupDetailsScreen'
 
 // Plan Screens
 export { default as PlanPickerScreen } from './main/PlanPickerScreen';
+
+// Rewards
+export { default as EarnPointsScreen } from './main/EarnPointsScreen';

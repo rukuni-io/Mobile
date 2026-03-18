@@ -104,6 +104,11 @@ const MenuActionSheet: React.FC<MenuActionSheetProps> = ({
     navigation.navigate('Support');
   };
 
+  const handleEarnPoints = () => {
+    actionSheetRef.current?.hide();
+    navigation.navigate('EarnPoints');
+  };
+
   const sections: MenuSection[] = [
     {
       title: 'Finance',
@@ -119,6 +124,7 @@ const MenuActionSheet: React.FC<MenuActionSheetProps> = ({
           label: 'Points',
           iconBg: semanticColors.warningLight,
           iconColor: semanticColors.warning,
+          onPress: handleEarnPoints,
         },
         {
           icon: 'notifications-outline',

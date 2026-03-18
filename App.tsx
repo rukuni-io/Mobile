@@ -36,6 +36,9 @@ import GroupDetailsScreen from './screens/main/groups/GroupDetailsScreen';
 // Plan Screens
 import PlanPickerScreen from './screens/main/PlanPickerScreen';
 
+// Rewards
+import EarnPointsScreen from './screens/main/EarnPointsScreen';
+
 type RootStackParamList = {
   Splash: undefined;
   Onboarding: undefined;
@@ -43,8 +46,9 @@ type RootStackParamList = {
   Signup: undefined;
   ForgotPassword: undefined;
   Dashboard: undefined;
-  PlanPicker: undefined;
-  CreateGroup: undefined;
+  PlanPicker:   undefined;
+  EarnPoints:   undefined;
+  CreateGroup:  undefined;
   GroupDetails: undefined;
   Notifications: undefined;
   NotificationDetail: { notification_id: string };
@@ -147,6 +151,11 @@ const AppContent: React.FC = () => {
               name="PlanPicker"
               component={PlanPickerScreen}
               options={{ gestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="EarnPoints"
+              component={EarnPointsScreen}
+              options={{ headerShown: false }}
             />
             <Stack.Screen
               name="CreateGroup"
