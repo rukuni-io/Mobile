@@ -182,12 +182,16 @@ const ReferralScreen: React.FC = () => {
             >
                 {/* ── Header ── */}
                 <LinearGradient
-                    colors={['#0d2818', '#1a4d2e', '#25a071']}
+                    colors={['#161616', '#00d68f1e']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.header}
                 >
                     <SafeAreaView>
+                        {/* Ghost icon */}
+                        <View style={styles.headerGhostIcon} pointerEvents="none">
+                            <Ionicons name="gift" size={120} color="#00d68f" />
+                        </View>
                         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
                             <Ionicons name="arrow-back" size={16} color="#fff" />
                             <Text style={styles.backBtnText}>Back</Text>
@@ -369,7 +373,7 @@ const ReferralScreen: React.FC = () => {
                                 style={[styles.howRow, idx < arr.length - 1 && styles.howRowBorder]}
                             >
                                 <LinearGradient
-                                    colors={['#00246B', '#1a3a7a']}
+                                    colors={['#00d68f', '#6eb5ff']}
                                     style={styles.howBadge}
                                 >
                                     <Text style={styles.howBadgeIcon}>{s.icon}</Text>
@@ -395,9 +399,17 @@ const styles = StyleSheet.create({
 
     // Header
     header: {
+        overflow: 'hidden',
         paddingHorizontal: 20,
         paddingBottom: 32,
         paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight ?? 24 : 0,
+    },
+    headerGhostIcon: {
+        position: 'absolute',
+        right: -20,
+        bottom: -10,
+        opacity: 0.07,
+        transform: [{ rotate: '-15deg' }],
     },
     backBtn: {
         flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -437,14 +449,14 @@ const styles = StyleSheet.create({
         marginBottom: 4,
     },
     codeCard: {
-        backgroundColor: '#0d1f14',
-        borderColor: 'rgba(56,217,169,0.2)',
+        backgroundColor: '#1e2a22',
+        borderColor: 'rgba(0,214,143,0.25)',
     },
     codeHint:  { fontSize: 12, color: D.textMuted, marginBottom: 12 },
     codeRow:   { flexDirection: 'row', gap: 10, alignItems: 'center' },
     codeBox: {
         flex: 1, backgroundColor: D.surfaceHi,
-        borderWidth: 2, borderColor: 'rgba(56,217,169,0.35)',
+        borderWidth: 2, borderColor: 'rgba(0,214,143,0.40)',
         borderStyle: 'dashed', borderRadius: 12,
         paddingVertical: 14, alignItems: 'center',
     },

@@ -72,7 +72,7 @@ export default function SplashScreen() {
         ]}
       >
         <LinearGradient
-          colors={['#1e2240', '#2a2f5c']}
+          colors={['#161616', '#00d68f1a']}
           style={styles.heroGradient}
         >
           <Text style={styles.heroEmoji}>💰</Text>
@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
     width: 200,
     height: 200,
     borderRadius: 100,
-    backgroundColor: 'rgba(0,200,150,0.06)',
+    backgroundColor: 'rgba(0,214,143,0.06)',
     bottom: 80,
     left: -60,
   },

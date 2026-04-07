@@ -88,7 +88,7 @@ const SigninScreen: React.FC = () => {
       <StatusBar barStyle="light-content" backgroundColor={D.bg} />
 
       {/* Hero gradient banner */}
-      <LinearGradient colors={['#1a1f3e', D.bg]} style={styles.heroBanner}>
+      <LinearGradient colors={['#141414', D.bg]} style={styles.heroBanner}>
         <View style={styles.circle1} />
         <View style={styles.circle2} />
         <Text style={styles.heroEmoji}>🔐</Text>
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
     width: 130,
     height: 130,
     borderRadius: 65,
-    backgroundColor: 'rgba(0,200,150,0.07)',
+    backgroundColor: D.accentGlow,
     bottom: 0,
     left: -30,
   },

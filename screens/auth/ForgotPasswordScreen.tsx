@@ -127,7 +127,7 @@ export default function ForgotPasswordScreen() {
       <StatusBar barStyle="light-content" backgroundColor={D.bg} />
 
       {/* Header gradient strip */}
-      <LinearGradient colors={['#1a1f3e', D.bg]} style={styles.header}>
+      <LinearGradient colors={['#141414', D.bg]} style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color={D.textPrimary} />
         </TouchableOpacity>
@@ -154,7 +154,7 @@ export default function ForgotPasswordScreen() {
           {step === 0 && (
             <>
               <View style={styles.illustrationRow}>
-                <LinearGradient colors={['#1e2240', '#2a2f5c']} style={styles.illusCircle}>
+                <LinearGradient colors={['#222222', '#6eb5ff1e']} style={styles.illusCircle}>
                   <Text style={styles.illusEmoji}>🔒</Text>
                 </LinearGradient>
               </View>
@@ -184,7 +184,7 @@ export default function ForgotPasswordScreen() {
           {step === 1 && (
             <>
               <View style={styles.illustrationRow}>
-                <LinearGradient colors={['#0f2a27', '#1a3e3a']} style={styles.illusCircle}>
+                <LinearGradient colors={['#222222', '#00d68f1e']} style={styles.illusCircle}>
                   <Text style={styles.illusEmoji}>📨</Text>
                 </LinearGradient>
               </View>
@@ -214,7 +214,7 @@ export default function ForgotPasswordScreen() {
           {step === 2 && (
             <>
               <View style={styles.illustrationRow}>
-                <LinearGradient colors={['#1e1630', '#2a2050']} style={styles.illusCircle}>
+                <LinearGradient colors={['#222222', '#f59e0b1e']} style={styles.illusCircle}>
                   <Text style={styles.illusEmoji}>🔑</Text>
                 </LinearGradient>
               </View>

@@ -154,8 +154,8 @@ const CATEGORIES_FALLBACK: Category[] = [
     id: 'account',
     icon: '🔐',
     label: 'Account & Security',
-    color: D.purple,
-    grad: ['#2d1a70', '#1a1040'] as const,
+    color: D.accent,
+    grad: ['#1a1a1a', '#6eb5ff1e'] as const,
     desc: 'Password, 2FA, login issues',
     articles: [
       { q: 'How do I reset my password?', a: "Tap 'Forgot password?' on the sign-in screen. Enter your registered email and we'll send a 6-digit reset code. Enter the code and choose a new password. The code expires in 24 hours." },
@@ -170,7 +170,7 @@ const CATEGORIES_FALLBACK: Category[] = [
     icon: '👥',
     label: 'Savings Groups',
     color: D.accent,
-    grad: ['#1a2060', '#0e1540'] as const,
+    grad: ['#1a1a1a', '#00d68f1e'] as const,
     desc: 'Creating, managing and leaving groups',
     articles: [
       { q: 'How do I create a savings group?', a: "Tap '+' on the Groups screen. Enter the group name, target amount, number of members, start date, and monthly payment day. Invite members by email — they'll receive an invitation." },
@@ -212,8 +212,8 @@ const CATEGORIES_FALLBACK: Category[] = [
     id: 'notifications',
     icon: '🔔',
     label: 'Notifications',
-    color: D.purple,
-    grad: ['#2a1060', '#180a40'] as const,
+    color: D.warn,
+    grad: ['#1a1a1a', '#f59e0b1e'] as const,
     desc: 'Alerts, reminders & notification settings',
     articles: [
       { q: 'How do I manage my notifications?', a: 'Go to Profile → Settings → Notifications. Toggle push, email, and SMS individually. Control payment reminders, group updates, and invitation alerts separately.' },
@@ -252,10 +252,10 @@ const CATEGORIES_FALLBACK: Category[] = [
 const STATUS_CONFIG = {
   open: { label: 'Open', color: D.accent, bg: D.accentSoft },
   in_review: { label: 'In Review', color: D.warn, bg: D.warnSoft },
-  awaiting: { label: 'Awaiting', color: D.purple, bg: D.purpleSoft },
+  awaiting: { label: 'Awaiting', color: D.accent, bg: D.accentSoft },
   escalated: { label: 'Escalated', color: D.danger, bg: D.dangerSoft },
   resolved: { label: 'Resolved', color: D.accent2, bg: D.accent2Soft },
-  closed: { label: 'Closed', color: D.textMuted, bg: 'rgba(74,80,112,0.15)' },
+  closed: { label: 'Closed', color: D.textMuted, bg: D.surface },
 };
 
 const PRIORITY_CONFIG = {
@@ -502,7 +502,7 @@ const HubView: React.FC<HubProps> = ({ nav, insets }) => {
   return (
     <ScrollView style={styles.hubContainer} showsVerticalScrollIndicator={false}>
       {/* Header */}
-      <LinearGradient colors={['#1a1f3e', D.bg]} style={[styles.hubHeader, { paddingTop: insets.top + 16 }]}>
+      <LinearGradient colors={['#161616', '#242424']} style={[styles.hubHeader, { paddingTop: insets.top + 16 }]}>
         <View style={styles.hubHeaderCircle1} />
         <View style={styles.hubHeaderCircle2} />
         <Text style={styles.hubHeaderIcon}>🛟</Text>
@@ -1005,7 +1005,7 @@ const MyTicketsView: React.FC<MyTicketsViewProps> = ({ onBack, onTicket, tickets
 
   return (
     <ScrollView style={styles.hubContainer} showsVerticalScrollIndicator={false}>
-      <LinearGradient colors={['#0f2060', '#1a3570']} style={[styles.hubHeader, { paddingTop: insets.top + 16 }]}>
+      <LinearGradient colors={['#161616', '#242424']} style={[styles.hubHeader, { paddingTop: insets.top + 16 }]}>
         <View style={styles.hubHeaderCircle1} />
         <View style={styles.hubHeaderCircle2} />
         <BackBtn onBack={onBack} />

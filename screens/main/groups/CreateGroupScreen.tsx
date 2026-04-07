@@ -1347,7 +1347,7 @@ const CreateGroupScreen = () => {
                         {/* ─── Step 4: Review ─── */}
                         {step === 4 && (
                             <View>
-                                <View style={[styles.tipCard, { backgroundColor: 'rgba(56, 217, 169, 0.08)' }]}>
+                                <View style={[styles.tipCard, { backgroundColor: 'rgba(0, 214, 143, 0.08)' }]}>
                                     <Ionicons name="search-outline" size={18} color={D.accent2} />
                                     <Text style={styles.tipText}>
                                         Review everything before creating your group. Once confirmed, invitations will be sent automatically.
@@ -1356,6 +1356,13 @@ const CreateGroupScreen = () => {
 
                                 {/* Group Summary */}
                                 <View style={styles.reviewCard}>
+                                    <LinearGradient
+                                        colors={['#1e1e1e', D.accent2 + '1e']}
+                                        style={StyleSheet.absoluteFillObject}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 1 }}
+                                    />
+                                    <Ionicons name="checkmark-circle-outline" size={110} color="#fff" style={styles.reviewGhostIcon} />
                                     <Text style={styles.reviewCardLabel}>GROUP</Text>
                                     <Text style={styles.reviewCardTitle}>{form.title}</Text>
 
@@ -1398,6 +1405,13 @@ const CreateGroupScreen = () => {
 
                                 {/* Members Summary */}
                                 <View style={styles.reviewCard}>
+                                    <LinearGradient
+                                        colors={['#1e1e1e', D.accent + '1e']}
+                                        style={StyleSheet.absoluteFillObject}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 1 }}
+                                    />
+                                    <Ionicons name="people-outline" size={110} color="#fff" style={styles.reviewGhostIcon} />
                                     <Text style={styles.reviewCardLabel}>
                                         INVITED MEMBERS ({form.members_emails.length})
                                     </Text>
@@ -1799,6 +1813,14 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         padding: 18,
         marginBottom: 14,
+        overflow: 'hidden',
+    },
+    reviewGhostIcon: {
+        position: 'absolute',
+        right: -18,
+        bottom: -16,
+        opacity: 0.07,
+        transform: [{ rotate: '-8deg' }],
     },
     reviewCardLabel: {
         fontSize: 12,
@@ -1827,7 +1849,7 @@ const styles = StyleSheet.create({
         borderRadius: 17,
         backgroundColor: D.accentSoft,
         borderWidth: 1,
-        borderColor: 'rgba(124, 140, 255, 0.2)',
+        borderColor: D.accentMed,
         alignItems: 'center',
         justifyContent: 'center',
     },

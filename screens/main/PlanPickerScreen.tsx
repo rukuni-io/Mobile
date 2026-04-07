@@ -16,24 +16,25 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import Constants from "expo-constants";
+import { D } from "../../theme/tokens";
 
 // ── Dark theme tokens ──────────────────────────────────────────────────────────
 const P = {
-    bg: "#0e0f17",
-    surface: "#161821",
-    surfaceHi: "#1e2030",
-    border: "#2a2d3e",
-    borderHi: "#3d4160",
-    text: "#e8eaf6",
-    textSub: "#8b8fa8",
-    textMuted: "#555870",
-    accent: "#7c8cff",
-    accentSoft: "rgba(124,140,255,0.094)",
-    accentMed: "rgba(124,140,255,0.2)",
-    accent2: "#38d9a9",
-    accent2Soft: "rgba(56,217,169,0.094)",
-    warn: "#ffa94d",
-    warnSoft: "rgba(255,169,77,0.082)",
+    bg:          D.bg as string,
+    surface:     D.surfaceCard as string,
+    surfaceHi:   D.surfaceHi as string,
+    border:      D.border as string,
+    borderHi:    D.borderHi as string,
+    text:        D.text as string,
+    textSub:     D.textSub as string,
+    textMuted:   D.textMuted as string,
+    accent:      D.accent as string,
+    accentSoft:  D.accentSoft as string,
+    accentMed:   D.accentMed as string,
+    accent2:     D.accent2 as string,
+    accent2Soft: D.accent2Soft as string,
+    warn:        D.warn as string,
+    warnSoft:    D.warnSoft as string,
 };
 
 // ── API plan shape ─────────────────────────────────────────────────────────────
@@ -78,7 +79,7 @@ function accentForSlug(slug: string): {
         return { color: "#38d9a9", soft: "rgba(56,217,169,0.094)", checkBg: "rgba(56,217,169,0.125)", grad: ["#38d9a9", "#20b087"], glow: "rgba(56,217,169,0.267)" };
     if (slug === "enterprise")
         return { color: "#ffa94d", soft: "rgba(255,169,77,0.082)", checkBg: "rgba(255,169,77,0.125)", grad: ["#ffa94d", "#e07a10"], glow: "rgba(255,169,77,0.267)" };
-    return { color: "#7c8cff", soft: "rgba(124,140,255,0.094)", checkBg: "rgba(124,140,255,0.125)", grad: ["#7c8cff", "#9b59d4"], glow: "rgba(124,140,255,0.267)" };
+    return { color: "#6eb5ff", soft: "rgba(110,181,255,0.15)", checkBg: "rgba(110,181,255,0.18)", grad: ["#6eb5ff", "#00d68f"] as const, glow: "rgba(110,181,255,0.25)" };
 }
 
 function mapApiPlanToConfig(plan: ApiPlan): PlanConfig {
@@ -444,7 +445,7 @@ const PlanPickerScreen: React.FC = () => {
 
             {/* Header gradient */}
             <LinearGradient
-                colors={["#1a1c3a", "#2a1850"]}
+                colors={["#161616", "#242424"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.header}

@@ -220,7 +220,7 @@ const SettingsScreen: React.FC = () => {
             >
                 {/* ── Header ── */}
                 <LinearGradient
-                    colors={["#0f1c35", "#1a2d52", "#1e3a6e"]}
+                    colors={["#161616", "#242424"]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.header}
@@ -292,7 +292,7 @@ const SettingsScreen: React.FC = () => {
                         <SettingsRow
                             icon="newspaper-outline"
                             iconBg="rgba(59,130,246,0.12)"
-                            iconColor="#3b82f6"
+                            iconColor={D.accent}
                             label="Terms of Service"
                             onPress={() => info("Opening terms of service…")}
                             last
@@ -313,7 +313,7 @@ const SettingsScreen: React.FC = () => {
                         <SettingsRow
                             icon="globe-outline"
                             iconBg="rgba(59,130,246,0.12)"
-                            iconColor="#3b82f6"
+                            iconColor={D.accent}
                             label="Language"
                             value="English"
                             onPress={() => info("Language settings coming soon")}

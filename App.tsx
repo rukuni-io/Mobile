@@ -32,6 +32,7 @@ import NotificationDetailScreen from './screens/main/notifications/NotificationD
 // Group Screens
 import CreateGroupScreen from './screens/main/groups/CreateGroupScreen';
 import GroupDetailsScreen from './screens/main/groups/GroupDetailsScreen';
+import ContributeScreen from './screens/main/groups/ContributeScreen';
 
 // Plan Screens
 import PlanPickerScreen from './screens/main/PlanPickerScreen';
@@ -50,6 +51,13 @@ type RootStackParamList = {
   EarnPoints:   undefined;
   CreateGroup:  undefined;
   GroupDetails: undefined;
+  Contribute: {
+    group_id: number;
+    group_title: string;
+    payable_amount: number;
+    payout_position?: number;
+    payment_out_day?: number;
+  };
   Notifications: undefined;
   NotificationDetail: { notification_id: string };
   Profile: undefined;
@@ -168,6 +176,11 @@ const AppContent: React.FC = () => {
               options={{
                 headerShown: false
               }}
+            />
+            <Stack.Screen
+              name="Contribute"
+              component={ContributeScreen}
+              options={{ headerShown: false }}
             />
             <Stack.Screen
               name="Notifications"

@@ -4,70 +4,61 @@ import { Ionicons } from '@expo/vector-icons';
 import ActionSheet, { ActionSheetRef } from 'react-native-actions-sheet';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { semanticColors } from '../theme/semanticColors';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { D } from '../theme/tokens';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface MenuItemConfig {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  onPress?: () => void;
-  iconBg?: string;
-  iconColor?: string;
-  badge?: number;
-}
-
-interface MenuSection {
-  title?: string;
-  items: MenuItemConfig[];
-}
 
 interface MenuActionSheetProps {
   actionSheetRef: React.RefObject<ActionSheetRef>;
   onSignOut: () => void;
   unreadNotifications?: number;
+  userName?: string;
 }
 
-// ─── MenuItem ─────────────────────────────────────────────────────────────────
+// ─── Big Nav Tile ─────────────────────────────────────────────────────────────
 
-const MenuItem: React.FC<MenuItemConfig> = ({
-  icon,
-  label,
-  onPress,
-  iconBg = semanticColors.accentLight,
-  iconColor = semanticColors.buttonPrimary,
-  badge,
-}) => (
-  <TouchableOpacity style={styles.item} onPress={onPress} activeOpacity={0.7}>
-    {/* Icon pill */}
-    <View style={[styles.iconWrap, { backgroundColor: iconBg }]}>
-      <Ionicons name={icon} size={20} color={iconColor} />
+const NavTile: React.FC<{
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  sublabel?: string;
+  grad: readonly [string, string];
+  badge?: number;
+  onPress?: () => void;
+}> = ({ icon, label, sublabel, grad, badge, onPress }) => (
+  <TouchableOpacity style={styles.navTile} onPress={onPress} activeOpacity={0.8}>
+    <LinearGradient colors={grad} style={styles.navTileGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+      <Ionicons name={icon} size={26} color="#fff" style={{ opacity: 0.95 }} />
       {badge !== undefined && badge > 0 && (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{badge > 9 ? '9+' : badge}</Text>
+        <View style={styles.tileBadge}>
+          <Text style={styles.tileBadgeText}>{badge > 9 ? '9+' : badge}</Text>
         </View>
       )}
-    </View>
-
-    {/* Label */}
-    <Text style={styles.itemLabel}>{label}</Text>
+    </LinearGradient>
+    <Text style={styles.navTileLabel}>{label}</Text>
+    {sublabel ? <Text style={styles.navTileSub}>{sublabel}</Text> : null}
   </TouchableOpacity>
 );
 
-// ─── MenuSection ──────────────────────────────────────────────────────────────
+// ─── Slim Row Item ─────────────────────────────────────────────────────────────
 
-const Section: React.FC<{ section: MenuSection }> = ({ section }) => (
-  <View style={styles.section}>
-    {section.title && (
-      <Text style={styles.sectionTitle}>{section.title}</Text>
-    )}
-    <View style={styles.grid}>
-      {section.items.map((item) => (
-        <MenuItem key={item.label} {...item} />
-      ))}
+const RowItem: React.FC<{
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  iconColor: string;
+  iconBg: string;
+  onPress?: () => void;
+  chevron?: boolean;
+}> = ({ icon, label, iconColor, iconBg, onPress, chevron = true }) => (
+  <TouchableOpacity style={styles.rowItem} onPress={onPress} activeOpacity={0.75}>
+    <View style={[styles.rowIconWrap, { backgroundColor: iconBg }]}>
+      <Ionicons name={icon} size={18} color={iconColor} />
     </View>
-  </View>
+    <Text style={styles.rowLabel}>{label}</Text>
+    {chevron && (
+      <Ionicons name="chevron-forward" size={15} color={D.textMuted} style={styles.rowChevron} />
+    )}
+  </TouchableOpacity>
 );
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -76,106 +67,18 @@ const MenuActionSheet: React.FC<MenuActionSheetProps> = ({
   actionSheetRef,
   onSignOut,
   unreadNotifications = 0,
+  userName,
 }) => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
 
-  const handleNotifications = () => {
+  const go = (screen: string) => {
     actionSheetRef.current?.hide();
-    navigation.navigate('Notifications');
+    navigation.navigate(screen);
   };
 
-  const handleProfile = () => {
-    actionSheetRef.current?.hide();
-    navigation.navigate('Profile');
-  };
-
-  const handleReferral = () => {
-    actionSheetRef.current?.hide();
-    navigation.navigate('Referral');
-  };
-
-  const handleSettings = () => {
-    actionSheetRef.current?.hide();
-    navigation.navigate('Settings');
-  };
-
-  const handleSupport = () => {
-    actionSheetRef.current?.hide();
-    navigation.navigate('Support');
-  };
-
-  const handleEarnPoints = () => {
-    actionSheetRef.current?.hide();
-    navigation.navigate('EarnPoints');
-  };
-
-  const sections: MenuSection[] = [
-    {
-      title: 'Finance',
-      items: [
-        {
-          icon: 'megaphone-outline',
-          label: 'Ads',
-          iconBg: semanticColors.successLight,
-          iconColor: semanticColors.success,
-        },
-        {
-          icon: 'diamond-outline',
-          label: 'Points',
-          iconBg: semanticColors.warningLight,
-          iconColor: semanticColors.warning,
-          onPress: handleEarnPoints,
-        },
-        {
-          icon: 'notifications-outline',
-          label: 'Notifications',
-          iconBg: semanticColors.accentLight,
-          iconColor: semanticColors.buttonPrimary,
-          badge: unreadNotifications,
-          onPress: handleNotifications,
-        },
-        {
-          icon: 'person-outline',
-          label: 'Profile',
-          iconBg: 'rgba(99,102,241,0.12)',
-          iconColor: semanticColors.buttonSecondary,
-          onPress: handleProfile,
-        },
-      ],
-    },
-    {
-      title: 'Account',
-      items: [
-        {
-          icon: 'settings-outline',
-          label: 'Settings',
-          iconBg: 'rgba(107,114,128,0.12)',
-          iconColor: semanticColors.badgeNeutral,
-          onPress: handleSettings,
-        },
-        {
-          icon: 'help-circle-outline',
-          label: 'Support',
-          iconBg: semanticColors.infoLight,
-          iconColor: semanticColors.info,
-          onPress: handleSupport,
-        },
-        {
-          icon: 'gift-outline',
-          label: 'Referral',
-          iconBg: 'rgba(236,72,153,0.12)',
-          iconColor: semanticColors.badgePink,
-          onPress: handleReferral,
-        },
-        {
-          icon: 'document-text-outline',
-          label: 'History',
-          iconBg: semanticColors.accentLight,
-          iconColor: semanticColors.buttonPrimary,
-        },
-      ],
-    },
-  ];
+  const initials = userName
+    ? userName.trim().split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
+    : '?';
 
   return (
     <ActionSheet
@@ -185,34 +88,74 @@ const MenuActionSheet: React.FC<MenuActionSheetProps> = ({
       indicatorStyle={styles.indicator}
     >
       <View style={styles.container}>
-        {/* Handle + top label */}
-        <Text style={styles.sheetHeading}>Menu</Text>
 
-        {/* Sections */}
-        {sections.map((section, i) => (
-          <Section key={i} section={section} />
-        ))}
-
-        {/* Divider */}
-        <View style={styles.divider} />
-
-        {/* Sign Out */}
-        <TouchableOpacity
-          style={styles.signOut}
-          onPress={onSignOut}
-          activeOpacity={0.75}
-        >
-          <View style={styles.signOutIconWrap}>
-            <Ionicons name="log-out-outline" size={20} color={semanticColors.danger} />
+        {/* ── Profile pill ── */}
+        <View style={styles.profileRow}>
+          <LinearGradient colors={['#00d68f', '#6eb5ff']} style={styles.avatar} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+            <Text style={styles.avatarText}>{initials}</Text>
+          </LinearGradient>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.profileName} numberOfLines={1}>{userName ?? 'My Account'}</Text>
+            <Text style={styles.profileSub}>View your profile →</Text>
           </View>
-          <Text style={styles.signOutLabel}>Sign Out</Text>
-          <Ionicons
-            name="chevron-forward-outline"
-            size={16}
-            color={semanticColors.dangerLight}
-            style={{ marginLeft: 'auto' }}
+          <TouchableOpacity style={styles.profileArrow} onPress={() => go('Profile')} activeOpacity={0.7}>
+            <Ionicons name="person-circle-outline" size={22} color={D.accent} />
+          </TouchableOpacity>
+        </View>
+
+        {/* ── 4 big tiles ── */}
+        <View style={styles.tilesRow}>
+          <NavTile
+            icon="notifications-outline"
+            label="Alerts"
+            sublabel={unreadNotifications > 0 ? `${unreadNotifications} new` : 'All clear'}
+            grad={['#00d68f', '#00bb7a']}
+            badge={unreadNotifications}
+            onPress={() => go('Notifications')}
           />
-        </TouchableOpacity>
+          <NavTile
+            icon="diamond-outline"
+            label="Points"
+            sublabel="Earn rewards"
+            grad={['#f59e0b', '#d97706']}
+            onPress={() => go('EarnPoints')}
+          />
+          <NavTile
+            icon="gift-outline"
+            label="Refer"
+            sublabel="Invite friends"
+            grad={['#ec4899', '#a855f7']}
+            onPress={() => go('Referral')}
+          />
+          <NavTile
+            icon="help-circle-outline"
+            label="Support"
+            sublabel="Get help"
+            grad={['#6eb5ff', '#4a9eff']}
+            onPress={() => go('Support')}
+          />
+        </View>
+
+        {/* ── Slim settings row ── */}
+        <View style={styles.rowGroup}>
+          <RowItem
+            icon="settings-outline"
+            label="Settings"
+            iconBg="rgba(107,114,128,0.15)"
+            iconColor="rgba(255,255,255,0.6)"
+            onPress={() => go('Settings')}
+          />
+          <View style={styles.rowDivider} />
+          <RowItem
+            icon="log-out-outline"
+            label="Sign Out"
+            iconBg="rgba(239,68,68,0.12)"
+            iconColor={D.danger}
+            chevron={false}
+            onPress={onSignOut}
+          />
+        </View>
+
       </View>
     </ActionSheet>
   );
@@ -222,118 +165,142 @@ const MenuActionSheet: React.FC<MenuActionSheetProps> = ({
 
 const styles = StyleSheet.create({
   sheet: {
-    backgroundColor: semanticColors.containerBackground,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    backgroundColor: '#1e1e1e',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
   },
   indicator: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    width: 40,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    width: 36,
   },
   container: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 10,
-  },
-  sheetHeading: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: semanticColors.textSecondary,
-    textAlign: 'center',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    marginBottom: 20,
-    marginTop: 4,
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 28,
+    gap: 18,
   },
 
-  // ── Section ──
-  section: {
-    marginBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: semanticColors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 12,
-    marginLeft: 4,
-  },
-  grid: {
+  // ── Profile pill ──
+  profileRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-
-  // ── Item ──
-  item: {
-    width: '25%',
     alignItems: 'center',
-    paddingVertical: 12,
+    gap: 12,
+    backgroundColor: D.border,
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
   },
-  iconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
   },
-  itemLabel: {
-    marginTop: 7,
-    fontSize: 11,
-    fontWeight: '500',
-    color: semanticColors.textDescription,
-    textAlign: 'center',
+  avatarText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 16,
+  },
+  profileName: {
+    color: D.text,
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  profileSub: {
+    color: D.textMuted,
+    fontSize: 12,
+    marginTop: 1,
+  },
+  profileArrow: {
+    padding: 4,
   },
 
-  // ── Badge ──
-  badge: {
+  // ── Big tiles ──
+  tilesRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  navTile: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 7,
+  },
+  navTileGrad: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navTileLabel: {
+    color: D.text,
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  navTileSub: {
+    color: D.textMuted,
+    fontSize: 10,
+    textAlign: 'center',
+    marginTop: -4,
+  },
+  tileBadge: {
     position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: semanticColors.danger,
+    top: 6,
+    right: 6,
+    backgroundColor: D.danger,
     borderRadius: 8,
-    minWidth: 16,
-    height: 16,
+    minWidth: 17,
+    height: 17,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: '#1e1e1e',
   },
-  badgeText: {
-    color: semanticColors.textInverse,
+  tileBadgeText: {
+    color: '#fff',
     fontSize: 9,
-    fontWeight: '700',
+    fontWeight: '800',
   },
 
-  // ── Divider ──
-  divider: {
-    height: 1,
-    backgroundColor: semanticColors.divider,
-    marginVertical: 16,
+  // ── Slim row ──
+  rowGroup: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    overflow: 'hidden',
   },
-
-  // ── Sign Out ──
-  signOut: {
+  rowItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    paddingVertical: 5,
-    paddingHorizontal: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
   },
-  signOutIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: semanticColors.dangerLight,
+  rowIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    alignContent: 'center',
   },
-  signOutLabel: {
-    fontSize: 15,
+  rowLabel: {
+    flex: 1,
+    fontSize: 14,
     fontWeight: '600',
-    alignItems: 'center',
-    color: semanticColors.danger,
+    color: D.text,
+  },
+  rowChevron: {
+    marginLeft: 'auto',
+  },
+  rowDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    marginHorizontal: 16,
   },
 });
 

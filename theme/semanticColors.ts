@@ -2,89 +2,89 @@
 
 export const semanticColors = {
     // ── Backgrounds ──────────────────────────────────────────────────────────────
-    background: '#000f2e',
-    backgroundSecondary: '#000a1f',
-    containerBackground: 'rgba(0,20,60,0.90)',
-    cardBackground: 'rgba(0,20,60,0.90)',
-    inputBackground: 'rgba(255,255,255,0.04)',
+    background: '#1a1a1a',
+    backgroundSecondary: '#121212',
+    containerBackground: '#242424',
+    cardBackground: '#242424',
+    inputBackground: 'rgba(255,255,255,0.06)',
 
     // ── Text ──────────────────────────────────────────────────────────────────────
-    textPrimary: '#e8f0fd',
-    textSecondary: 'rgba(232,240,253,0.45)',
-    textDescription: 'rgba(232,240,253,0.45)',
-    textMuted: 'rgba(232,240,253,0.22)',
+    textPrimary: '#ffffff',
+    textSecondary: 'rgba(255,255,255,0.5)',
+    textDescription: 'rgba(255,255,255,0.5)',
+    textMuted: 'rgba(255,255,255,0.3)',
     textInverse: '#ffffff',
 
     // ── Buttons ───────────────────────────────────────────────────────────────────
-    buttonPrimary: '#CADCFC',
-    buttonPrimaryHover: '#a8c4f8',
-    buttonSecondary: '#2a52a0',
-    buttonSecondaryHover: '#1a3a7a',
-    buttonDisabled: 'rgba(202,220,252,0.40)',
+    buttonPrimary: '#00d68f',
+    buttonPrimaryHover: '#00bb7a',
+    buttonSecondary: '#0a1a0f',
+    buttonSecondaryHover: '#0d2015',
+    buttonDisabled: 'rgba(0,214,143,0.40)',
 
     // ── Borders ───────────────────────────────────────────────────────────────────
-    border: 'rgba(255,255,255,0.07)',
+    border: 'rgba(255,255,255,0.08)',
     borderLight: 'rgba(255,255,255,0.05)',
-    borderFocus: 'rgba(202,220,252,0.50)',
-    divider: 'rgba(255,255,255,0.07)',
+    borderFocus: 'rgba(110,181,255,0.50)',
+    divider: 'rgba(255,255,255,0.08)',
 
-    // ── Status — unchanged (accessible on dark bg) ───────────────────────────────
-    success: '#10b981',
-    successLight: 'rgba(16,185,129,0.12)',
-    successText: '#10b981',
+    // ── Status ───────────────────────────────────────────────────────────────────
+    success: '#00d68f',
+    successLight: 'rgba(0,214,143,0.15)',
+    successText: '#00d68f',
 
     warning: '#f59e0b',
-    warningLight: 'rgba(245,158,11,0.12)',
+    warningLight: 'rgba(245,158,11,0.15)',
     warningText: '#f59e0b',
 
     danger: '#ef4444',
-    dangerLight: 'rgba(239,68,68,0.10)',
+    dangerLight: 'rgba(239,68,68,0.15)',
     dangerText: '#ef4444',
 
-    info: '#3b82f6',
-    infoLight: 'rgba(59,130,246,0.12)',
-    infoText: '#3b82f6',
+    info: '#6eb5ff',
+    infoLight: 'rgba(110,181,255,0.15)',
+    infoText: '#6eb5ff',
 
     // ── Gradients ─────────────────────────────────────────────────────────────────
-    gradientPrimary: ['#2a52a0', '#CADCFC'] as const,
-    gradientSecondary: ['#00246B', '#1a3a7a'] as const,
-    gradientPurple: ['#2a52a0', '#CADCFC'] as const,   // mapped to brand for compat
-    gradientSuccess: ['#10b981', '#059669'] as const,
+    gradientPrimary: ['#00d68f', '#00bb7a'] as const,
+    gradientSecondary: ['#1a1a1a', '#242424'] as const,
+    gradientPurple: ['#1a1a1a', '#242424'] as const,   // alias kept for compat — no longer purple
+    gradientSuccess: ['#00d68f', '#00bb7a'] as const,
     gradientWarning: ['#f59e0b', '#d97706'] as const,
     gradientDanger: ['#ef4444', '#dc2626'] as const,
-    gradientInfo: ['#3b82f6', '#2563eb'] as const,
-    gradientHeader: ['#00246B', '#1a3a7a'] as const,
+    gradientInfo: ['#6eb5ff', '#4a9eff'] as const,
+    gradientHeader: ['#1a1a1a', '#242424'] as const,
 
     // ── Accents ───────────────────────────────────────────────────────────────────
-    accent: '#CADCFC',
-    accentLight: 'rgba(202,220,252,0.15)',
-    accentMuted: 'rgba(202,220,252,0.45)',
+    accent: '#6eb5ff',
+    accentLight: 'rgba(110,181,255,0.15)',
+    accentMuted: 'rgba(110,181,255,0.45)',
 
     // ── Progress & Indicators ────────────────────────────────────────────────────
-    progressBackground: 'rgba(255,255,255,0.07)',
-    progressFill: '#CADCFC',
+    progressBackground: 'rgba(255,255,255,0.1)',
+    progressFill: '#6eb5ff',
 
     // ── Shadows ───────────────────────────────────────────────────────────────────
     shadowColor: '#000000',
 
     // ── Icons ─────────────────────────────────────────────────────────────────────
-    iconPrimary: '#e8f0fd',
-    iconSecondary: 'rgba(232,240,253,0.45)',
-    iconMuted: 'rgba(232,240,253,0.30)',
+    iconPrimary: '#ffffff',
+    iconSecondary: 'rgba(255,255,255,0.7)',
+    iconMuted: 'rgba(255,255,255,0.3)',
 
     // ── Tab Bar ───────────────────────────────────────────────────────────────────
-    tabActive: '#CADCFC',
-    tabInactive: 'rgba(232,240,253,0.40)',
-    tabBackground: 'rgba(0,15,46,0.85)',
+    tabActive: '#00d68f',
+    tabInactive: 'rgba(255,255,255,0.4)',
+    tabBackground: 'rgba(26,26,26,0.95)',
 
     // ── Badge Colors ──────────────────────────────────────────────────────────────
-    badgePrimary: '#CADCFC',
-    badgeSuccess: '#10b981',
+    badgePrimary: '#6eb5ff',
+    badgeSuccess: '#00d68f',
     badgeWarning: '#f59e0b',
     badgeDanger: '#ef4444',
-    badgeInfo: '#3b82f6',
+    badgeInfo: '#6eb5ff',
     badgePink: '#ec4899',
-    badgeNeutral: 'rgba(232,240,253,0.45)',
+    badgeNeutral: 'rgba(255,255,255,0.4)',
 };
 
 // ── Type Export ───────────────────────────────────────────────────────────────

@@ -160,7 +160,7 @@ const NOTIF_TYPE_CONFIG: { [key: string]: { icon: string; color: string; colorSo
     invitation_pending: { icon: '⏳', color: D.warn, colorSoft: D.warnSoft, cta: 'Accept Invitation', ctaSecondary: 'Decline' },
     invitation_accepted: { icon: '✅', color: D.accent2, colorSoft: D.accent2Soft, cta: 'View Group' },
     invitation_declined: { icon: '❌', color: D.danger, colorSoft: D.dangerSoft, cta: 'View Group' },
-    group_starting: { icon: '🚀', color: D.purple, colorSoft: D.purpleSoft, cta: 'View Schedule', ctaSecondary: 'Set Reminder' },
+    group_starting: { icon: '🚀', color: D.accent, colorSoft: D.accentSoft, cta: 'View Schedule', ctaSecondary: 'Set Reminder' },
     payment_due: { icon: '💳', color: D.danger, colorSoft: D.dangerSoft, cta: 'Pay Now', ctaSecondary: 'View History' },
     payment_received: { icon: '💰', color: D.accent2, colorSoft: D.accent2Soft, cta: 'View Details' },
     payment_reminder: { icon: '⏰', color: D.warn, colorSoft: D.warnSoft, cta: 'Pay Now', ctaSecondary: 'Snooze' },

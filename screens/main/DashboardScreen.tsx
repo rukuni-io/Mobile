@@ -79,7 +79,10 @@ interface DashboardResponse {
 interface StatCardConfig {
     label: string;
     value: number;
-    colors: readonly [string, string];
+    accentColor: string;
+    icon: string;
+    sparkData: number[];
+    trendUp: boolean;
 }
 
 type TabType = "topGroups" | "myGroup";
@@ -149,17 +152,63 @@ const Header: React.FC<{
     </View>
 );
 
-const StatCard: React.FC<StatCardConfig> = ({ label, value, colors }) => (
+const StatCard: React.FC<StatCardConfig> = ({ label, value, accentColor, icon, sparkData, trendUp }) => (
     <View style={styles.statCard}>
+        {/* Gradient background */}
         <LinearGradient
-            colors={colors}
+            colors={['#1e1e1e', accentColor + '1e']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.statCardInner}
-        >
+            style={StyleSheet.absoluteFill}
+        />
+        {/* Ghost background icon */}
+        <View style={styles.statGhostIcon} pointerEvents="none">
+            <Ionicons name={icon as any} size={78} color={accentColor} />
+        </View>
+        <View style={styles.statCardInner}>
+            {/* Icon pill */}
+            <View style={[styles.statIconWrap, { backgroundColor: accentColor + '28' }]}>
+                <Ionicons name={icon as any} size={14} color={accentColor} />
+            </View>
+
+            {/* Value + trend pill */}
+            <View style={styles.statValueRow}>
+                <Text style={styles.statValue}>{value}</Text>
+                <View style={[styles.statTrendPill, {
+                    backgroundColor: trendUp
+                        ? 'rgba(0,214,143,0.18)'
+                        : 'rgba(239,68,68,0.18)',
+                }]}>
+                    <Ionicons
+                        name={trendUp ? 'trending-up' : 'trending-down'}
+                        size={11}
+                        color={trendUp ? '#00d68f' : '#ef4444'}
+                    />
+                </View>
+            </View>
+
+            {/* Label */}
             <Text style={styles.statLabel}>{label}</Text>
-            <Text style={styles.statValue}>{value}</Text>
-        </LinearGradient>
+
+            {/* Sparkline */}
+            <View style={styles.sparkline}>
+                {sparkData.map((h, i) => (
+                    <View
+                        key={i}
+                        style={[
+                            styles.sparkBar,
+                            {
+                                height: Math.max(3, h * 20),
+                                backgroundColor:
+                                    i === sparkData.length - 1
+                                        ? accentColor
+                                        : accentColor + '40',
+                            },
+                        ]}
+                    />
+                ))}
+            </View>
+        </View>
     </View>
 );
 
@@ -168,31 +217,11 @@ const StatsCarousel: React.FC<{ stats: DashboardStats | null }> = ({
 }) => {
     const statCards: StatCardConfig[] = useMemo(
         () => [
-            {
-                label: "Total Groups",
-                value: stats?.total_groups ?? 0,
-                colors: semanticColors.gradientPrimary,
-            },
-            {
-                label: "Owned Groups",
-                value: stats?.owned_groups ?? 0,
-                colors: semanticColors.gradientSecondary,
-            },
-            {
-                label: "Member Groups",
-                value: stats?.member_groups ?? 0,
-                colors: semanticColors.gradientPurple,
-            },
-            {
-                label: "Active Groups",
-                value: stats?.active_groups ?? 0,
-                colors: semanticColors.gradientSuccess,
-            },
-            {
-                label: "Pending Invites",
-                value: stats?.pending_invitations ?? 0,
-                colors: semanticColors.gradientWarning,
-            },
+            { label: "Total Groups",    value: stats?.total_groups ?? 0,         accentColor: '#00d68f', icon: 'people',           sparkData: [0.3, 0.5, 0.4, 0.6, 0.7, 0.8, 1.0], trendUp: true  },
+            { label: "Owned Groups",    value: stats?.owned_groups ?? 0,         accentColor: '#6eb5ff', icon: 'ribbon',           sparkData: [0.5, 0.6, 0.5, 0.7, 0.6, 0.9, 1.0], trendUp: true  },
+            { label: "Member Groups",   value: stats?.member_groups ?? 0,        accentColor: '#00c896', icon: 'person-add',       sparkData: [0.4, 0.3, 0.5, 0.6, 0.5, 0.7, 0.8], trendUp: true  },
+            { label: "Active Groups",   value: stats?.active_groups ?? 0,        accentColor: '#00d68f', icon: 'checkmark-circle', sparkData: [0.3, 0.5, 0.6, 0.5, 0.8, 0.7, 1.0], trendUp: true  },
+            { label: "Pending Invites", value: stats?.pending_invitations ?? 0,  accentColor: '#f59e0b', icon: 'mail',             sparkData: [0.7, 0.5, 0.8, 0.6, 0.9, 0.6, 0.7], trendUp: false },
         ],
         [stats],
     );
@@ -229,15 +258,37 @@ const GroupCard: React.FC<{
         group.total_members,
     );
 
+    const accentColor =
+        memberProgress >= 70 ? '#00d68f' :
+        memberProgress >= 40 ? '#6eb5ff' :
+        '#f59e0b';
+
     return (
         <TouchableOpacity
             style={[styles.groupCard, shadowStyles]}
             onPress={onPress}
             activeOpacity={0.8}
         >
+            {/* Gradient background */}
+            <LinearGradient
+                colors={['#1e1e1e', accentColor + '20']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFill}
+            />
+
+            {/* Ghost icon */}
+            <View style={styles.groupGhostIcon} pointerEvents="none">
+                <Ionicons name="people" size={70} color={accentColor} />
+            </View>
+
+            {/* Header: progress badge + status icons */}
             <View style={styles.groupCardHeader}>
-                <View style={styles.groupBadge}>
-                    <Text style={styles.groupBadgeText}>
+                <View style={[styles.groupBadge, {
+                    backgroundColor: accentColor + '28',
+                    borderColor: accentColor + '55',
+                }]}>
+                    <Text style={[styles.groupBadgeText, { color: accentColor }]}>
                         {Math.round(memberProgress)}%
                     </Text>
                 </View>
@@ -279,7 +330,13 @@ const GroupCard: React.FC<{
                 {formatCurrency(group.target_amount)}
             </Text>
 
-            <ProgressBar progress={memberProgress} />
+            {/* Progress bar with dynamic accent color */}
+            <View style={styles.progressBarContainer}>
+                <View style={[styles.progressBar, {
+                    width: `${Math.min(memberProgress, 100)}%`,
+                    backgroundColor: accentColor,
+                }]} />
+            </View>
 
             <View style={styles.groupDetails}>
                 <View>
@@ -329,38 +386,31 @@ const UpgradeBanner: React.FC<{
     onDismiss: () => void;
 }> = ({ planName, onUpgrade, onDismiss }) => (
     <View style={styles.upgradeBannerCard}>
-        <LinearGradient
-            colors={["#2a1d6e", "#1a2a6e"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.upgradeBannerGradient}
+        <View style={styles.upgradeBannerIconWrap}>
+            <Text style={{ fontSize: 18 }}>⚡</Text>
+        </View>
+        <View style={styles.upgradeBannerTextBlock}>
+            <Text style={styles.upgradeBannerTitle}>
+                You're on {planName}
+            </Text>
+            <Text style={styles.upgradeBannerSubtitle}>
+                Upgrade to Growth — unlimited groups &amp; smart reminders
+            </Text>
+        </View>
+        <TouchableOpacity
+            onPress={onUpgrade}
+            style={styles.upgradeBannerCta}
+            activeOpacity={0.8}
         >
-            <View style={styles.upgradeBannerIconWrap}>
-                <Text style={{ fontSize: 18 }}>⚡</Text>
-            </View>
-            <View style={styles.upgradeBannerTextBlock}>
-                <Text style={styles.upgradeBannerTitle}>
-                    You're on {planName}
-                </Text>
-                <Text style={styles.upgradeBannerSubtitle}>
-                    Upgrade to Growth — unlimited groups &amp; smart reminders
-                </Text>
-            </View>
-            <TouchableOpacity
-                onPress={onUpgrade}
-                style={styles.upgradeBannerCta}
-                activeOpacity={0.8}
-            >
-                <Text style={styles.upgradeBannerCtaText}>Upgrade</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-                onPress={onDismiss}
-                style={styles.upgradeBannerDismiss}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-                <Ionicons name="close" size={16} color="rgba(255,255,255,0.6)" />
-            </TouchableOpacity>
-        </LinearGradient>
+            <Text style={styles.upgradeBannerCtaText}>Upgrade</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+            onPress={onDismiss}
+            style={styles.upgradeBannerDismiss}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+            <Ionicons name="close" size={16} color="rgba(255,255,255,0.5)" />
+        </TouchableOpacity>
     </View>
 );
 
@@ -814,6 +864,7 @@ const DashboardScreen: React.FC = () => {
                     actionSheetRef={actionSheetRef as React.RefObject<ActionSheetRef>}
                     onSignOut={handleSignOut}
                     unreadNotifications={stats?.unread_notifications ?? 0}
+                    userName={user?.name}
                 />
 
                 {/* Scrollable Content */}
@@ -967,44 +1018,77 @@ const styles = StyleSheet.create({
     // Stats Carousel
     balanceInfo: {
         paddingHorizontal: 20,
-        paddingVertical: 30,
-        marginVertical: 10,
+        paddingVertical: 26,
+        marginVertical: 6,
     },
     balanceScrollContent: {
         paddingRight: 20,
         alignItems: "center",
-        gap: 14,
+        gap: 12,
     },
     statCard: {
-        width: 120,
-        height: 120,
-        borderRadius: 15,
+        width: 152,
+        height: 162,
+        borderRadius: 18,
         overflow: "hidden",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.08)",
+    },
+    statGhostIcon: {
+        position: "absolute",
+        right: -15,
+        bottom: -10,
+        opacity: 0.09,
+        transform: [{ rotate: "-12deg" }],
     },
     statCardInner: {
         flex: 1,
-        flexDirection: "column",
-        justifyContent: "center",
-        alignItems: "center",
-        paddingHorizontal: 12,
-        paddingVertical: 14,
-        borderRadius: 15,
+        padding: 14,
+        justifyContent: "space-between",
     },
-    statLabel: {
-        color: "rgba(255, 255, 255, 0.9)",
-        fontSize: 11,
-        fontWeight: "600",
-        marginBottom: 6,
-        textAlign: "center",
-        letterSpacing: 0.4,
-        lineHeight: 15,
+    statIconWrap: {
+        width: 28,
+        height: 28,
+        borderRadius: 9,
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+    },
+    statValueRow: {
+        flexDirection: "row",
+        alignItems: "flex-end",
+        gap: 6,
     },
     statValue: {
-        color: semanticColors.textInverse,
-        fontSize: 28,
+        fontSize: 32,
         fontWeight: "800",
-        textAlign: "center",
-        lineHeight: 34,
+        lineHeight: 36,
+        color: "#ffffff",
+    },
+    statTrendPill: {
+        paddingHorizontal: 6,
+        paddingVertical: 4,
+        borderRadius: 8,
+        marginBottom: 2,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    statLabel: {
+        color: "rgba(255,255,255,0.5)",
+        fontSize: 10,
+        fontWeight: "500",
+        lineHeight: 13,
+        marginTop: -2,
+    },
+    sparkline: {
+        flexDirection: "row",
+        alignItems: "flex-end",
+        gap: 3,
+        height: 22,
+    },
+    sparkBar: {
+        flex: 1,
+        borderRadius: 2,
     },
 
     // Tabs
@@ -1053,13 +1137,20 @@ const styles = StyleSheet.create({
         marginHorizontal: 20,
     },
     groupCard: {
-        backgroundColor: semanticColors.cardBackground,
+        overflow: "hidden",
         padding: 18,
         marginRight: 15,
-        width: 195,
+        width: 200,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: semanticColors.border,
+        borderColor: "rgba(255,255,255,0.08)",
+    },
+    groupGhostIcon: {
+        position: "absolute",
+        right: -14,
+        bottom: -10,
+        opacity: 0.08,
+        transform: [{ rotate: "-10deg" }],
     },
     groupCardHeader: {
         flexDirection: "row",
@@ -1068,15 +1159,12 @@ const styles = StyleSheet.create({
         marginBottom: 14,
     },
     groupBadge: {
-        backgroundColor: semanticColors.accentLight,
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: semanticColors.accentLight,
     },
     groupBadgeText: {
-        color: semanticColors.accent,
         fontSize: 11,
         fontWeight: "700",
     },
@@ -1114,7 +1202,7 @@ const styles = StyleSheet.create({
     groupAmount: {
         fontSize: 20,
         fontWeight: "800",
-        color: semanticColors.textInverse,
+        color: "#ffffff",
         marginTop: 10,
         marginBottom: 10,
     },
@@ -1158,14 +1246,16 @@ const styles = StyleSheet.create({
 
     // Section Title
     sectionTitle: {
-        fontSize: 18,
-        fontWeight: "700",
-        marginVertical: 5,
-        color: semanticColors.textPrimary,
+        fontSize: 20,
+        fontWeight: "800",
+        marginTop: 6,
+        marginBottom: 2,
+        color: "#ffffff",
         paddingHorizontal: 20,
+        letterSpacing: -0.2,
     },
     boldText: {
-        fontWeight: "bold",
+        fontWeight: "800",
     },
 
     // Transactions
@@ -1293,31 +1383,36 @@ const styles = StyleSheet.create({
         marginHorizontal: 20,
         marginBottom: 16,
         borderRadius: 16,
-        overflow: "hidden",
+        backgroundColor: "#242424",
         borderWidth: 1,
-        borderColor: "rgba(124,140,255,0.25)",
+        borderColor: "rgba(0,214,143,0.3)",
+        flexDirection: "row",
+        alignItems: "center",
+        paddingVertical: 14,
+        paddingHorizontal: 14,
+        gap: 10,
         ...Platform.select({
             ios: {
-                shadowColor: "#7c8cff",
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 12,
+                shadowColor: "#000000",
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.2,
+                shadowRadius: 8,
             },
-            android: { elevation: 5 },
+            android: { elevation: 4 },
         }),
     },
     upgradeBannerGradient: {
         flexDirection: "row",
         alignItems: "center",
-        paddingVertical: 13,
-        paddingHorizontal: 14,
         gap: 10,
     },
     upgradeBannerIconWrap: {
         width: 36,
         height: 36,
         borderRadius: 11,
-        backgroundColor: "rgba(124,140,255,0.25)",
+        backgroundColor: "rgba(0,214,143,0.15)",
+        borderWidth: 1,
+        borderColor: "rgba(0,214,143,0.3)",
         alignItems: "center",
         justifyContent: "center",
         flexShrink: 0,
@@ -1327,17 +1422,17 @@ const styles = StyleSheet.create({
     },
     upgradeBannerTitle: {
         fontSize: 13,
-        fontWeight: "800",
-        color: "#fff",
+        fontWeight: "700",
+        color: "#ffffff",
         marginBottom: 2,
     },
     upgradeBannerSubtitle: {
-        fontSize: 10,
-        color: "rgba(255,255,255,0.72)",
-        lineHeight: 14,
+        fontSize: 11,
+        color: "rgba(255,255,255,0.5)",
+        lineHeight: 15,
     },
     upgradeBannerCta: {
-        backgroundColor: "rgba(124,140,255,0.35)",
+        backgroundColor: "#00d68f",
         borderRadius: 10,
         paddingHorizontal: 12,
         paddingVertical: 7,
@@ -1346,7 +1441,7 @@ const styles = StyleSheet.create({
     upgradeBannerCtaText: {
         fontSize: 12,
         fontWeight: "700",
-        color: "#fff",
+        color: "#0a1a0f",
     },
     upgradeBannerDismiss: {
         paddingLeft: 6,

@@ -72,6 +72,13 @@ interface GroupApiResponse {
 
 type RootStackParamList = {
     GroupDetails: { group_id: number };
+    Contribute: {
+        group_id: number;
+        group_title: string;
+        payable_amount: number;
+        payout_position?: number;
+        payment_out_day?: number;
+    };
     Signin: undefined;
 };
 
@@ -124,7 +131,7 @@ const maskEmail = (email?: string): string => {
 
 const shadowStyles = Platform.select({
     ios: {
-        shadowColor: semanticColors.shadowColor,
+        shadowColor: '#000000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.15,
         shadowRadius: 12,
@@ -132,288 +139,21 @@ const shadowStyles = Platform.select({
     android: { elevation: 4 },
 });
 
-// ─── Pure-RN Circular Progress ────────────────────────────────────────────────
+// ─── Day Helper ──────────────────────────────────────────────────────────────
 
-const CircleProgress = ({
-    percent,
-    size = 130,
-    strokeWidth = 12,
-    color = semanticColors.buttonPrimary,
-    trackColor = semanticColors.progressBackground,
-    children,
-}: {
-    percent: number;
-    size?: number;
-    strokeWidth?: number;
-    color?: string;
-    trackColor?: string;
-    children?: React.ReactNode;
-}) => {
-    const half = size / 2;
-    const clamp = Math.min(100, Math.max(0, percent));
-
-    // Calculate rotation for each half
-    // Right half handles 0-50%, left half handles 50-100%
-    // Each half rotates 0-180deg for its portion
-    const rightRotation = clamp <= 50 ? (clamp / 50) * 180 : 180;
-    const leftRotation = clamp > 50 ? ((clamp - 50) / 50) * 180 : 0;
-
-    return (
-        <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
-            {/* Track (background circle) */}
-            <View style={{
-                position: 'absolute', width: size, height: size,
-                borderRadius: half, borderWidth: strokeWidth, borderColor: trackColor,
-            }} />
-
-            {/* Right half progress (0-50%) - clips to right side */}
-            <View style={{
-                position: 'absolute',
-                width: half,
-                height: size,
-                left: half,
-                overflow: 'hidden',
-            }}>
-                <View style={{
-                    width: size,
-                    height: size,
-                    marginLeft: -half,
-                    borderRadius: half,
-                    borderWidth: strokeWidth,
-                    borderLeftColor: 'transparent',
-                    borderBottomColor: 'transparent',
-                    borderRightColor: color,
-                    borderTopColor: color,
-                    transform: [{ rotate: `${rightRotation - 135}deg` }],
-                }} />
-            </View>
-
-            {/* Left half progress (50-100%) - clips to left side */}
-            {clamp > 50 && (
-                <View style={{
-                    position: 'absolute',
-                    width: half,
-                    height: size,
-                    left: 0,
-                    overflow: 'hidden',
-                }}>
-                    <View style={{
-                        width: size,
-                        height: size,
-                        borderRadius: half,
-                        borderWidth: strokeWidth,
-                        borderRightColor: 'transparent',
-                        borderTopColor: 'transparent',
-                        borderLeftColor: color,
-                        borderBottomColor: color,
-                        transform: [{ rotate: `${leftRotation - 135}deg` }],
-                    }} />
-                </View>
-            )}
-
-            {/* Inner content */}
-            <View style={{
-                width: size - strokeWidth * 2 - 8,
-                height: size - strokeWidth * 2 - 8,
-                borderRadius: half,
-                alignItems: 'center',
-                justifyContent: 'center',
-            }}>
-                {children}
-            </View>
-        </View>
-    );
+const getDaysUntilPayment = (paymentDay?: number): string => {
+    if (!paymentDay) return '—';
+    const today = new Date();
+    const d = today.getDate();
+    const m = today.getMonth();
+    const y = today.getFullYear();
+    const target = d < paymentDay
+        ? new Date(y, m, paymentDay)
+        : new Date(y, m + 1, paymentDay);
+    return String(Math.ceil((target.getTime() - today.getTime()) / 86400000));
 };
 
-// ─── Contribution Timeline Chart ──────────────────────────────────────────────
 
-const ContributionChart = ({
-    currentMonth,
-    totalMonths,
-    targetAmount,
-    payableAmount,
-    activeUsers,
-    totalUsers,
-}: {
-    currentMonth: number;
-    totalMonths: number;
-    targetAmount: number;
-    payableAmount: number;
-    activeUsers: number;
-    totalUsers: number;
-}) => {
-    const timelinePct = totalMonths > 0 ? Math.round((currentMonth / totalMonths) * 100) : 0;
-    const membersPct = totalUsers > 0 ? Math.round((activeUsers / totalUsers) * 100) : 0;
-    const collected = payableAmount * activeUsers * Math.max(currentMonth, 0);
-    const overallPct = targetAmount > 0 ? Math.min(100, Math.round((collected / targetAmount) * 100)) : 0;
-
-    return (
-        <View style={[chartStyles.card, shadowStyles]}>
-            <Text style={chartStyles.cardTitle}>Contribution Timeline</Text>
-
-            {/* Two rings */}
-            <View style={chartStyles.ringsRow}>
-                <View style={chartStyles.ringBlock}>
-                    <CircleProgress percent={timelinePct} color={semanticColors.buttonPrimary}>
-                        <Text style={[chartStyles.pct, { color: semanticColors.buttonPrimary }]}>{timelinePct}%</Text>
-                        <Text style={chartStyles.pctLabel}>Timeline</Text>
-                    </CircleProgress>
-                    <Text style={chartStyles.ringCaption}>Month {currentMonth} of {totalMonths}</Text>
-                </View>
-
-                <View style={chartStyles.ringBlock}>
-                    <CircleProgress percent={membersPct} color={semanticColors.success}>
-                        <Text style={[chartStyles.pct, { color: semanticColors.success }]}>{membersPct}%</Text>
-                        <Text style={chartStyles.pctLabel}>Members</Text>
-                    </CircleProgress>
-                    <Text style={chartStyles.ringCaption}>{activeUsers} of {totalUsers} active</Text>
-                </View>
-            </View>
-
-            {/* Amounts */}
-            <View style={chartStyles.amountsRow}>
-                <View>
-                    <Text style={chartStyles.amtLabel}>Raised so far</Text>
-                    <Text style={chartStyles.amtValue}>{formatCurrency(collected)}</Text>
-                </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={chartStyles.amtLabel}>Target</Text>
-                    <Text style={chartStyles.amtValue}>{formatCurrency(targetAmount)}</Text>
-                </View>
-            </View>
-
-            {/* Progress bar */}
-            <View style={chartStyles.track}>
-                <View style={[chartStyles.fill, { width: `${overallPct}%` as any }]} />
-            </View>
-            <Text style={chartStyles.barCaption}>{overallPct}% of target reached</Text>
-
-            {/* Month dots */}
-            {totalMonths > 0 && (
-                <>
-                    <View style={chartStyles.dotsRow}>
-                        {Array.from({ length: totalMonths }).map((_, i) => {
-                            const m = i + 1;
-                            const done = m < currentMonth;
-                            const current = m === currentMonth;
-                            return (
-                                <View key={i} style={[
-                                    chartStyles.dot,
-                                    done && chartStyles.dotDone,
-                                    current && chartStyles.dotCurrent,
-                                ]}>
-                                    <Text style={[
-                                        chartStyles.dotTxt,
-                                        (done || current) && chartStyles.dotTxtActive,
-                                    ]}>
-                                        {m}
-                                    </Text>
-                                </View>
-                            );
-                        })}
-                    </View>
-                    <Text style={chartStyles.scheduleLabel}>Monthly payment schedule</Text>
-                </>
-            )}
-        </View>
-    );
-};
-
-const chartStyles = StyleSheet.create({
-    card: {
-        backgroundColor: semanticColors.containerBackground,
-        marginHorizontal: 16,
-        marginTop: 12,
-        borderRadius: 18,
-        padding: 20,
-        borderWidth: 1,
-        borderColor: semanticColors.borderLight,
-    },
-    cardTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: semanticColors.textPrimary,
-        marginBottom: 20,
-    },
-    ringsRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        marginBottom: 22,
-    },
-    ringBlock: {
-        alignItems: 'center',
-        gap: 8,
-    },
-    pct: {
-        fontSize: 22,
-        fontWeight: '800',
-    },
-    pctLabel: {
-        fontSize: 10,
-        color: semanticColors.textSecondary,
-        marginTop: 2,
-    },
-    ringCaption: {
-        fontSize: 12,
-        color: semanticColors.textSecondary,
-        textAlign: 'center',
-    },
-    amountsRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 8,
-    },
-    amtLabel: {
-        fontSize: 11,
-        color: semanticColors.textSecondary,
-        marginBottom: 2,
-    },
-    amtValue: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: semanticColors.textPrimary,
-    },
-    track: {
-        height: 8,
-        backgroundColor: semanticColors.progressBackground,
-        borderRadius: 4,
-        overflow: 'hidden',
-        marginBottom: 5,
-    },
-    fill: {
-        height: '100%',
-        backgroundColor: semanticColors.buttonPrimary,
-        borderRadius: 4,
-    },
-    barCaption: {
-        fontSize: 11,
-        color: semanticColors.textSecondary,
-        textAlign: 'right',
-        marginBottom: 16,
-    },
-    dotsRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 6,
-        marginTop: 2,
-        justifyContent: 'center',
-    },
-    dot: {
-        width: 28, height: 28, borderRadius: 14,
-        backgroundColor: semanticColors.progressBackground,
-        alignItems: 'center', justifyContent: 'center',
-    },
-    dotDone: { backgroundColor: semanticColors.buttonPrimary },
-    dotCurrent: { backgroundColor: semanticColors.accent, transform: [{ scale: 1.18 }] },
-    dotTxt: { fontSize: 10, color: semanticColors.textSecondary, fontWeight: '600' },
-    dotTxtActive: { color: semanticColors.textInverse },
-    scheduleLabel: {
-        fontSize: 11,
-        color: semanticColors.textSecondary,
-        textAlign: 'center',
-        marginTop: 10,
-    },
-});
 
 // ─── Member Card ──────────────────────────────────────────────────────────────
 
@@ -430,18 +170,12 @@ const MemberCard = ({ user, payoutPosition, canViewDetails = true }: { user: Gro
             {/* Online dot */}
             <View style={[
                 memberStyles.onlineDot,
-                { backgroundColor: isActive ? semanticColors.success : semanticColors.danger },
+                { backgroundColor: isActive ? '#00d68f' : '#ef4444' },
             ]} />
 
             {/* Avatar */}
-            <View style={[
-                memberStyles.avatar,
-                { backgroundColor: isAdmin ? 'rgba(167, 139, 250, 0.15)' : semanticColors.accentLight },
-            ]}>
-                <Text style={[
-                    memberStyles.avatarTxt,
-                    { color: isAdmin ? semanticColors.accent : semanticColors.buttonPrimary },
-                ]}>
+            <View style={memberStyles.avatar}>
+                <Text style={memberStyles.avatarTxt}>
                     {getInitials(user.name)}
                 </Text>
             </View>
@@ -450,81 +184,74 @@ const MemberCard = ({ user, payoutPosition, canViewDetails = true }: { user: Gro
             <Text style={memberStyles.sub} numberOfLines={1}>{displayMobile}</Text>
             <Text style={memberStyles.sub} numberOfLines={1}>{displayEmail}</Text>
 
-            <View style={[
-                memberStyles.roleBadge,
-                { backgroundColor: isAdmin ? 'rgba(167, 139, 250, 0.15)' : semanticColors.accentLight },
-            ]}>
-                <Text style={[
-                    memberStyles.roleTxt,
-                    { color: isAdmin ? semanticColors.accent : semanticColors.buttonPrimary },
-                ]}>
-                    {capitalize(user.pivot.role)}
-                </Text>
+            <View style={memberStyles.roleBadge}>
+                <Text style={memberStyles.roleTxt}>{capitalize(user.pivot.role)}</Text>
             </View>
 
-            <View style={[
-                memberStyles.statusBadge,
-                { backgroundColor: isActive ? semanticColors.successLight : semanticColors.dangerLight },
-            ]}>
-                <Ionicons
-                    name={isActive ? 'checkmark-circle' : 'close-circle'}
-                    size={11}
-                    color={isActive ? semanticColors.success : semanticColors.danger}
-                />
-                <Text style={[
-                    memberStyles.statusTxt,
-                    { color: isActive ? semanticColors.success : semanticColors.danger },
+                <View style={[
+                    memberStyles.statusBadge,
+                    { backgroundColor: isActive ? 'rgba(0,214,143,0.15)' : 'rgba(239,68,68,0.15)' },
                 ]}>
-                    {isActive ? 'Active' : 'Inactive'}
-                </Text>
-            </View>
-
-            {payoutPosition && (
-                <Text style={memberStyles.payoutLabel}>Payout #{payoutPosition}</Text>
-            )}
+                    <Ionicons
+                        name={isActive ? 'checkmark-circle' : 'close-circle'}
+                        size={11}
+                        color={isActive ? '#00d68f' : '#ef4444'}
+                    />
+                    <Text style={[
+                        memberStyles.statusTxt,
+                        { color: isActive ? '#00d68f' : '#ef4444' },
+                    ]}>
+                        {isActive ? 'Active' : 'Inactive'}
+                    </Text>
+                </View>
+                {payoutPosition ? (
+                    <Text style={memberStyles.payoutLabel}>Slot #{payoutPosition}</Text>
+                ) : null}
         </View>
     );
 };
 
 const memberStyles = StyleSheet.create({
     card: {
-        width: 155,
-        backgroundColor: semanticColors.cardBackground,
+        width: 175,
+        backgroundColor: '#242424',
         borderRadius: 16,
-        padding: 14,
-        marginRight: 12,
+        padding: 16,
+        marginRight: 8,
         borderWidth: 1,
-        borderColor: semanticColors.border,
+        borderColor: 'rgba(255,255,255,0.08)',
         alignItems: 'center',
         position: 'relative',
     },
     onlineDot: {
         position: 'absolute', top: 11, right: 11,
         width: 9, height: 9, borderRadius: 5,
-        borderWidth: 1.5, borderColor: semanticColors.cardBackground,
+        borderWidth: 1.5, borderColor: '#242424',
     },
     avatar: {
         width: 52, height: 52, borderRadius: 26,
         alignItems: 'center', justifyContent: 'center',
         marginBottom: 10,
+        backgroundColor: 'rgba(255,255,255,0.08)',
     },
     avatarTxt: {
-        fontSize: 19, fontWeight: '800',
+        fontSize: 18, fontWeight: '800', color: '#ffffff',
     },
     name: {
-        fontSize: 13, fontWeight: '700', color: semanticColors.textPrimary,
+        fontSize: 13, fontWeight: '700', color: '#ffffff',
         textAlign: 'center', marginBottom: 3, width: '100%',
     },
     sub: {
-        fontSize: 11, color: semanticColors.textSecondary, textAlign: 'center',
+        fontSize: 11, color: 'rgba(255,255,255,0.5)', textAlign: 'center',
         marginBottom: 2, width: '100%',
     },
     roleBadge: {
         marginTop: 8, marginBottom: 6,
         paddingHorizontal: 12, paddingVertical: 3, borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.08)',
     },
     roleTxt: {
-        fontSize: 11, fontWeight: '700',
+        fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.7)',
     },
     statusBadge: {
         flexDirection: 'row', alignItems: 'center', gap: 4,
@@ -535,7 +262,7 @@ const memberStyles = StyleSheet.create({
     },
     payoutLabel: {
         fontSize: 10,
-        color: semanticColors.textSecondary,
+        color: 'rgba(255,255,255,0.5)',
         marginTop: 6,
     },
 });
@@ -599,10 +326,10 @@ const JoinRequestCard = ({
                     disabled={isProcessing}
                 >
                     {isDeclining ? (
-                        <ActivityIndicator size="small" color={semanticColors.danger} />
+                        <ActivityIndicator size="small" color="#ef4444" />
                     ) : (
                         <>
-                            <Ionicons name="close" size={16} color={semanticColors.danger} />
+                            <Ionicons name="close" size={16} color="#ef4444" />
                             <Text style={joinRequestStyles.declineBtnTxt}>Decline</Text>
                         </>
                     )}
@@ -613,10 +340,10 @@ const JoinRequestCard = ({
                     disabled={isProcessing}
                 >
                     {isAccepting ? (
-                        <ActivityIndicator size="small" color={semanticColors.textInverse} />
+                        <ActivityIndicator size="small" color="#ffffff" />
                     ) : (
                         <>
-                            <Ionicons name="checkmark" size={16} color={semanticColors.textInverse} />
+                            <Ionicons name="checkmark" size={16} color="#ffffff" />
                             <Text style={joinRequestStyles.acceptBtnTxt}>Accept</Text>
                         </>
                     )}
@@ -628,12 +355,12 @@ const JoinRequestCard = ({
 
 const joinRequestStyles = StyleSheet.create({
     card: {
-        backgroundColor: semanticColors.cardBackground,
+        backgroundColor: '#242424',
         borderRadius: 16,
         padding: 16,
         marginBottom: 12,
         borderWidth: 1,
-        borderColor: semanticColors.border,
+        borderColor: 'rgba(255,255,255,0.08)',
     },
     header: {
         flexDirection: 'row',
@@ -644,7 +371,7 @@ const joinRequestStyles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: semanticColors.warningLight,
+        backgroundColor: 'rgba(245,158,11,0.15)',
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 12,
@@ -652,7 +379,7 @@ const joinRequestStyles = StyleSheet.create({
     avatarTxt: {
         fontSize: 16,
         fontWeight: '800',
-        color: semanticColors.warning,
+        color: 'rgba(245,158,11,1)',
     },
     userInfo: {
         flex: 1,
@@ -660,12 +387,12 @@ const joinRequestStyles = StyleSheet.create({
     userName: {
         fontSize: 15,
         fontWeight: '700',
-        color: semanticColors.textPrimary,
+        color: '#ffffff',
         marginBottom: 2,
     },
     userEmail: {
         fontSize: 12,
-        color: semanticColors.textSecondary,
+        color: 'rgba(255,255,255,0.5)',
     },
     meta: {
         flexDirection: 'row',
@@ -674,13 +401,13 @@ const joinRequestStyles = StyleSheet.create({
         marginBottom: 14,
         paddingBottom: 14,
         borderBottomWidth: 1,
-        borderBottomColor: semanticColors.divider,
+        borderBottomColor: 'rgba(255,255,255,0.08)',
     },
     statusBadge: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        backgroundColor: semanticColors.warningLight,
+        backgroundColor: 'rgba(245,158,11,0.15)',
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 20,
@@ -689,16 +416,16 @@ const joinRequestStyles = StyleSheet.create({
         width: 6,
         height: 6,
         borderRadius: 3,
-        backgroundColor: semanticColors.warning,
+        backgroundColor: 'rgba(245,158,11,1)',
     },
     statusText: {
         fontSize: 11,
         fontWeight: '600',
-        color: semanticColors.warning,
+        color: 'rgba(245,158,11,1)',
     },
     dateText: {
         fontSize: 11,
-        color: semanticColors.textSecondary,
+        color: 'rgba(255,255,255,0.5)',
     },
     actions: {
         flexDirection: 'row',
@@ -710,16 +437,16 @@ const joinRequestStyles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
-        backgroundColor: semanticColors.dangerLight,
+        backgroundColor: 'rgba(239,68,68,0.15)',
         paddingVertical: 11,
         borderRadius: 10,
         borderWidth: 1,
-        borderColor: semanticColors.danger + '30',
+        borderColor: 'rgba(239,68,68,0.30)',
     },
     declineBtnTxt: {
         fontSize: 13,
         fontWeight: '700',
-        color: semanticColors.danger,
+        color: '#ef4444',
     },
     acceptBtn: {
         flex: 1,
@@ -727,14 +454,14 @@ const joinRequestStyles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
-        backgroundColor: semanticColors.success,
+        backgroundColor: '#00d68f',
         paddingVertical: 11,
         borderRadius: 10,
     },
     acceptBtnTxt: {
         fontSize: 13,
         fontWeight: '700',
-        color: semanticColors.textInverse,
+        color: '#0a1a0f',
     },
     btnDisabled: {
         opacity: 0.6,
@@ -743,25 +470,20 @@ const joinRequestStyles = StyleSheet.create({
 
 // ─── Detail Row ───────────────────────────────────────────────────────────────
 
-const DetailRow = ({
-    icon,
+const DetailsRow = ({
     label,
     value,
     isLast = false,
+    accent = false,
 }: {
-    icon: keyof typeof Ionicons.glyphMap;
     label: string;
     value: string;
     isLast?: boolean;
+    accent?: boolean;
 }) => (
     <View style={[detailStyles.row, isLast && detailStyles.rowLast]}>
-        <View style={detailStyles.labelContainer}>
-            <View style={detailStyles.iconContainer}>
-                <Ionicons name={icon} size={16} color={semanticColors.buttonPrimary} />
-            </View>
-            <Text style={detailStyles.label}>{label}</Text>
-        </View>
-        <Text style={detailStyles.value}>{value}</Text>
+        <Text style={detailStyles.label}>{label}</Text>
+        <Text style={[detailStyles.value, accent && detailStyles.valueAccent]}>{value}</Text>
     </View>
 );
 
@@ -771,25 +493,14 @@ const detailStyles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         paddingVertical: 16,
+        paddingHorizontal: 16,
         borderBottomWidth: 1,
-        borderBottomColor: semanticColors.divider,
+        borderBottomColor: 'rgba(255,255,255,0.08)',
     },
     rowLast: { borderBottomWidth: 0 },
-    labelContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
-    iconContainer: {
-        width: 32,
-        height: 32,
-        borderRadius: 8,
-        backgroundColor: semanticColors.accentLight,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    label: { fontSize: 15, color: semanticColors.textSecondary },
-    value: { fontSize: 15, fontWeight: '700', color: semanticColors.textPrimary },
+    label: { fontSize: 14, color: 'rgba(255,255,255,0.5)' },
+    value: { fontSize: 14, fontWeight: '600', color: '#ffffff' },
+    valueAccent: { color: '#6eb5ff' },
 });
 
 // ─── Cache Config ─────────────────────────────────────────────────────────────
@@ -809,6 +520,7 @@ const GroupDetailsScreen = () => {
     const [is_active, setIsActive] = React.useState<boolean>(false);
     const [isInGroup, setIsInGroup] = React.useState<boolean>(false);
     const [joining, setJoining] = React.useState<boolean>(false);
+    const [myPosition, setMyPosition] = React.useState<number | null>(null);
     const [processingRequest, setProcessingRequest] = React.useState<{ id: number; action: 'accept' | 'decline' } | null>(null);
     const [loading, setLoading] = React.useState<boolean>(true);
     const fadeAnim = React.useRef(new Animated.Value(0)).current;
@@ -822,12 +534,13 @@ const GroupDetailsScreen = () => {
                 const cacheKey = `cache_group_${group_id}`;
                 const cachedData = await AsyncStorage.getItem(cacheKey);
                 if (cachedData) {
-                    const { group: cachedGroup, joinRequests: cachedJoinRequests, role: cachedRole, isActive: cachedIsActive, isInGroup: cachedIsInGroup } = JSON.parse(cachedData);
+                    const { group: cachedGroup, joinRequests: cachedJoinRequests, role: cachedRole, isActive: cachedIsActive, isInGroup: cachedIsInGroup, myPosition: cachedMyPosition } = JSON.parse(cachedData);
                     setGroup(cachedGroup);
                     setJoinRequests(cachedJoinRequests || []);
                     setRole(cachedRole);
                     setIsActive(cachedIsActive);
                     setIsInGroup(cachedIsInGroup);
+                    setMyPosition(cachedMyPosition ?? null);
                     setLoading(false);
                     Animated.timing(fadeAnim, {
                         toValue: 1, duration: 350, useNativeDriver: true,
@@ -895,15 +608,18 @@ const GroupDetailsScreen = () => {
             let newIsInGroup = false;
             
             // If user is not in group yet, let them see the group and request to join
+            let newMyPosition: number | null = null;
             if (pivot) {
                 newIsInGroup = true;
                 newRole = pivot.role;
                 newIsActive = pivot.is_active;
+                newMyPosition = pivot.payout_position ?? null;
             }
             
             setIsInGroup(newIsInGroup);
             setRole(newRole);
             setIsActive(newIsActive);
+            setMyPosition(newMyPosition);
             
             // Update cache
             lastFetchRef.current = Date.now();
@@ -914,6 +630,7 @@ const GroupDetailsScreen = () => {
                 role: newRole,
                 isActive: newIsActive,
                 isInGroup: newIsInGroup,
+                myPosition: newMyPosition,
             }));
 
             Animated.timing(fadeAnim, {
@@ -1082,19 +799,14 @@ const GroupDetailsScreen = () => {
         return (
             <SafeAreaView style={styles.container}>
                 <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-                <LinearGradient
-                    colors={semanticColors.gradientHeader}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.gradientHeader}
-                >
+                <View style={styles.topnav}>
                     <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-                        <Ionicons name="arrow-back" size={20} color={semanticColors.textInverse} />
+                        <Ionicons name="chevron-back" size={18} color="rgba(255,255,255,0.7)" />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Group Details</Text>
-                </LinearGradient>
+                    <Text style={styles.navLabel}>Groups</Text>
+                </View>
                 <View style={styles.loadingCenter}>
-                    <ActivityIndicator size="large" color={semanticColors.buttonPrimary} />
+                    <ActivityIndicator size="large" color="#00d68f" />
                     <Text style={styles.loadingText}>Loading group info…</Text>
                 </View>
             </SafeAreaView>
@@ -1106,24 +818,19 @@ const GroupDetailsScreen = () => {
         return (
             <SafeAreaView style={styles.container}>
                 <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-                <LinearGradient
-                    colors={semanticColors.gradientHeader}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.gradientHeader}
-                >
+                <View style={styles.topnav}>
                     <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-                        <Ionicons name="arrow-back" size={20} color={semanticColors.textInverse} />
+                        <Ionicons name="chevron-back" size={18} color="rgba(255,255,255,0.7)" />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Group Details</Text>
-                </LinearGradient>
+                    <Text style={styles.navLabel}>Groups</Text>
+                </View>
                 <View style={styles.loadingCenter}>
                     <Text style={styles.loadingText}>Unable to load group</Text>
-                    <TouchableOpacity 
-                        style={{ marginTop: 16, padding: 12, backgroundColor: semanticColors.buttonPrimary, borderRadius: 8 }}
+                    <TouchableOpacity
+                        style={{ marginTop: 16, padding: 12, backgroundColor: '#00d68f', borderRadius: 8 }}
                         onPress={() => loadGroup(true)}
                     >
-                        <Text style={{ color: semanticColors.textInverse, fontWeight: '600' }}>Retry</Text>
+                        <Text style={{ color: '#0a1a0f', fontWeight: '600' }}>Retry</Text>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
@@ -1132,174 +839,147 @@ const GroupDetailsScreen = () => {
 
     const monthly = group.payable_amount
         ?? (group.total_users ? group.target_amount / group.total_users : 0);
+    const collected = monthly * (group.active_users_count ?? 0) * Math.max(group.current_month ?? 0, 0);
+    const pct = group.target_amount > 0
+        ? Math.min(100, Math.round((collected / group.target_amount) * 100))
+        : 0;
+
+    const adminUser = group.users.find(u => u.pivot.role?.toLowerCase() === 'admin');
+    const adminDisplayName = adminUser?.name
+        ? adminUser.name.split(' ').map((p, i) => i === 0 ? p : p[0] + '.').join(' ')
+        : 'Admin';
+
+    const daysLeft = getDaysUntilPayment(group.payment_out_day);
+    const primaryBtnLabel = is_active ? 'Contribute' : isInGroup ? 'Accept Invitation' : 'Request to Join';
 
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
             <ScrollView showsVerticalScrollIndicator={false}>
 
-                {/* ── Purple Gradient Header ── */}
-                <LinearGradient
-                    colors={semanticColors.gradientHeader}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.gradientHeader}
-                >
+                {/* ── Top nav ── */}
+                <View style={styles.topnav}>
                     <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-                        <Ionicons name="arrow-back" size={20} color={semanticColors.textInverse} />
+                        <Ionicons name="chevron-back" size={18} color="rgba(255,255,255,0.7)" />
                     </TouchableOpacity>
-
-                    <Text style={styles.headerTitle}>{group.title}</Text>
-                    <Text style={styles.headerSub}>Savings Group</Text>
-
-                    <View style={styles.pillRow}>
-                        <View style={styles.pill}>
-                            <Ionicons name="wallet-outline" size={12} color="rgba(255,255,255,0.9)" />
-                            <Text style={styles.pillTxt}>{formatCurrency(group.target_amount)}</Text>
-                        </View>
-                        <View style={styles.pill}>
-                            <Ionicons name="people-outline" size={12} color="rgba(255,255,255,0.9)" />
-                            <Text style={styles.pillTxt}>
-                                {group.active_users_count}/{group.total_users} members
-                            </Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.badgeRow}>
-                        {isInGroup && (
-                            <View style={styles.rolePill}>
-                                <Text style={styles.rolePillTxt}>{capitalize(role)}</Text>
-                            </View>
-                        )}
-                        <View style={[
-                            styles.statusPill,
-                            { backgroundColor: is_active ? 'rgba(16, 185, 129, 0.22)' : isInGroup ? 'rgba(239, 68, 68, 0.22)' : 'rgba(59, 130, 246, 0.22)' },
-                        ]}>
-                            <View style={[
-                                styles.statusDotHdr,
-                                { backgroundColor: is_active ? semanticColors.success : isInGroup ? semanticColors.danger : semanticColors.buttonPrimary },
-                            ]} />
-                            <Text style={[
-                                styles.statusPillTxt,
-                                { color: is_active ? semanticColors.success : isInGroup ? semanticColors.danger : semanticColors.buttonPrimary },
-                            ]}>
-                                {is_active ? 'Active' : isInGroup ? 'Pending' : 'Not a Member'}
-                            </Text>
-                        </View>
-                    </View>
-                </LinearGradient>
+                    <Text style={styles.navLabel}>Groups</Text>
+                </View>
 
                 <Animated.View style={{ opacity: fadeAnim }}>
 
-                    {/* ── Join/Request Banner ── */}
-                    {!is_active && (
-                        <View style={[styles.joinBanner, shadowStyles]}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={styles.joinTitle}>
-                                    {isInGroup ? 'You have a pending invitation' : 'Interested in this group?'}
-                                </Text>
-                                <Text style={styles.joinSub}>
-                                    {isInGroup ? 'Accept to start contributing to this group.' : 'Request to join and start saving together.'}
+                    {/* ── Hero ── */}
+                    <View style={styles.hero}>
+                        <View style={styles.heroTop}>
+                            <Text style={styles.heroTitle}>{group.title}</Text>
+                            <View style={[
+                                styles.activePill,
+                                !is_active && { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.35)' },
+                            ]}>
+                                <View style={[
+                                    styles.activeDot,
+                                    !is_active && { backgroundColor: 'rgba(245,158,11,1)' },
+                                ]} />
+                                <Text style={[
+                                    styles.activePillTxt,
+                                    !is_active && { color: 'rgba(245,158,11,1)' },
+                                ]}>
+                                    {is_active ? 'Active' : isInGroup ? 'Pending' : 'Not a Member'}
                                 </Text>
                             </View>
-                            <TouchableOpacity
-                                style={[styles.joinBtn, joining && { opacity: 0.65 }]}
-                                onPress={handleJoin}
-                                disabled={joining}
-                                activeOpacity={0.85}
-                            >
-                                {joining
-                                    ? <ActivityIndicator size="small" color={semanticColors.textInverse} />
-                                    : (
-                                        <>
-                                            <Ionicons name={isInGroup ? "people-outline" : "add-circle-outline"} size={14} color={semanticColors.textInverse} />
-                                            <Text style={styles.joinBtnTxt}>{isInGroup ? 'Join Group' : 'Request to Join'}</Text>
-                                        </>
-                                    )
-                                }
-                            </TouchableOpacity>
                         </View>
-                    )}
+                        <Text style={styles.heroSub}>Managed by {adminDisplayName} · Admin</Text>
 
-                    {/* ── Overview Card ── */}
-                    <View style={[styles.card, shadowStyles]}>
-                        <Text style={styles.cardTitle}>Group Overview</Text>
-                        {isInGroup && <DetailRow icon="shield-checkmark-outline" label="Role" value={capitalize(role)} />}
-                        <DetailRow icon="cash-outline" label="Amount" value={formatCurrency(group.target_amount)} />
-                        <DetailRow icon="wallet-outline" label="Payable" value={formatCurrency(monthly)} />
-                        <DetailRow
-                            icon="people-outline"
-                            label="Members"
-                            value={`${group.active_users_count ?? 0}/${group.total_users ?? 0}`}
-                        />
-                        <DetailRow
-                            icon="calendar-outline"
-                            label="Duration"
-                            value={`${group.total_users} months`}
-                            isLast={!group.expected_start_date && !group.payment_out_day}
-                        />
-                        {group.expected_start_date && (
-                            <DetailRow
-                                icon="today-outline"
-                                label="Start Date"
-                                value={group.expected_start_date}
-                                isLast={!group.payment_out_day}
-                            />
-                        )}
-                        {group.payment_out_day && (
-                            <DetailRow
-                                icon="time-outline"
-                                label="Payment Day"
+                        {/* Progress numerics */}
+                        <View style={styles.pctRow}>
+                            <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
+                                <Text style={styles.pctNum}>{pct}</Text>
+                                <Text style={styles.pctSym}>%</Text>
+                            </View>
+                            <Text style={styles.pctAmounts}>
+                                {formatCurrency(collected)} of {formatCurrency(group.target_amount)}
+                            </Text>
+                        </View>
+
+                        {/* Progress bar */}
+                        <View style={styles.progTrack}>
+                            <View style={[styles.progFill, { width: `${pct}%` as any }]} />
+                        </View>
+
+                        {/* Stats chips */}
+                        <View style={styles.statsRow}>
+                            <View style={styles.statChip}>
+                                <Text style={styles.statN}>{group.active_users_count ?? 0}</Text>
+                                <Text style={styles.statL}>Members</Text>
+                            </View>
+                            <View style={[styles.statChip, styles.statChipMid]}>
+                                <Text style={styles.statN}>{formatCurrency(monthly)}</Text>
+                                <Text style={styles.statL}>Monthly</Text>
+                            </View>
+                            <View style={styles.statChip}>
+                                <Text style={styles.statN}>{daysLeft}</Text>
+                                <Text style={styles.statL}>Days left</Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    {/* ── Group details ── */}
+                    <Text style={styles.secLabel}>Group details</Text>
+                    <View style={styles.detailsCard}>
+                        <DetailsRow label="Target amount" value={formatCurrency(group.target_amount)} />
+                        {group.expected_start_date ? (
+                            <DetailsRow label="Start date" value={group.expected_start_date} />
+                        ) : null}
+                        {group.payment_out_day != null ? (
+                            <DetailsRow
+                                label="Payment day"
                                 value={`${group.payment_out_day}${getOrdinalSuffix(group.payment_out_day)} of each month`}
+                            />
+                        ) : null}
+                        <DetailsRow label="Duration" value={`${group.total_users} months`} />
+                        <DetailsRow
+                            label="Max members"
+                            value={String(group.total_users)}
+                            isLast={myPosition == null}
+                        />
+                        {myPosition != null && (
+                            <DetailsRow
+                                label="Your position"
+                                value={`Slot ${myPosition} of ${group.total_users}`}
                                 isLast
+                                accent
                             />
                         )}
                     </View>
 
-                    {/* ── Contribution Timeline ── */}
-                    <ContributionChart
-                        currentMonth={group.current_month ?? 0}
-                        totalMonths={group.total_users}
-                        targetAmount={group.target_amount}
-                        payableAmount={monthly}
-                        activeUsers={group.active_users_count ?? 0}
-                        totalUsers={group.total_users}
-                    />
-
-                    {/* ── Group Members ── */}
-                    <View style={[styles.card, shadowStyles]}>
-                        <View style={styles.memberHeader}>
-                            <Text style={styles.sectionTitle}>Group Members</Text>
-                            <View style={styles.countBadge}>
-                                <Text style={styles.countTxt}>{group.users.length}</Text>
-                            </View>
-                        </View>
+                    {/* ── Members ── */}
+                    <Text style={styles.secLabel}>
+                        Members · {group.users.length} of {group.total_users}
+                    </Text>
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.membersScroll}
+                    >
                         {group.users.length === 0 ? (
                             <Text style={styles.emptyTxt}>No members yet!</Text>
                         ) : (
-                            <ScrollView
-                                horizontal
-                                showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={{ paddingVertical: 4 }}
-                            >
-                                {group.users.map((user, i) => (
-                                    <MemberCard
-                                        key={i}
-                                        user={user}
-                                        payoutPosition={user.pivot.payout_position}
-                                        canViewDetails={isInGroup}
-                                    />
-                                ))}
-                            </ScrollView>
+                            group.users.map((user, i) => (
+                                <MemberCard
+                                    key={i}
+                                    user={user}
+                                    payoutPosition={user.pivot.payout_position}
+                                    canViewDetails={isInGroup}
+                                />
+                            ))
                         )}
-                    </View>
+                    </ScrollView>
 
                     {/* ── Pending Join Requests (Admin Only) ── */}
                     {role.toLowerCase() === 'admin' && joinRequests.length > 0 && (
-                        <View style={[styles.card, shadowStyles]}>
-                            <View style={styles.memberHeader}>
-                                <Text style={styles.sectionTitle}>Join Requests</Text>
-                                <View style={[styles.countBadge, { backgroundColor: semanticColors.warning }]}>
+                        <View style={[styles.joinRequestsCard, shadowStyles]}>
+                            <View style={styles.joinRequestsHeader}>
+                                <Text style={styles.joinRequestsTitle}>Join Requests</Text>
+                                <View style={styles.countBadge}>
                                     <Text style={styles.countTxt}>{joinRequests.length}</Text>
                                 </View>
                             </View>
@@ -1314,6 +994,36 @@ const GroupDetailsScreen = () => {
                             ))}
                         </View>
                     )}
+
+                    {/* ── Actions ── */}
+                    <View style={styles.actions}>
+                        <TouchableOpacity
+                            style={[styles.btnP, joining && { opacity: 0.65 }]}
+                            onPress={is_active
+                                ? () => navigation.navigate('Contribute', {
+                                    group_id: group.id,
+                                    group_title: group.title,
+                                    payable_amount: group.payable_amount ?? 0,
+                                    payout_position: myPosition ?? undefined,
+                                    payment_out_day: group.payment_out_day,
+                                })
+                                : handleJoin}
+                            disabled={joining}
+                            activeOpacity={0.85}
+                        >
+                            {joining
+                                ? <ActivityIndicator size="small" color="#0a1a0f" />
+                                : <Text style={styles.btnPTxt}>{primaryBtnLabel}</Text>
+                            }
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.btnS}
+                            onPress={() => Alert.alert('Coming Soon', 'Invite feature is on its way!')}
+                            activeOpacity={0.85}
+                        >
+                            <Text style={styles.btnSTxt}>Invite member</Text>
+                        </TouchableOpacity>
+                    </View>
 
                     <View style={{ height: 32 }} />
                 </Animated.View>
@@ -1335,88 +1045,248 @@ const getOrdinalSuffix = (n: number): string => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: semanticColors.background,
+        backgroundColor: '#1a1a1a',
     },
-    gradientHeader: {
+
+    // ── Top nav ──
+    topnav: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        paddingTop: (StatusBar.currentHeight ?? 20) + 16,
+        paddingBottom: 20,
         paddingHorizontal: 20,
-        paddingTop: (StatusBar.currentHeight ?? 20) + 10,
-        paddingBottom: 30,
-        borderBottomLeftRadius: 24,
-        borderBottomRightRadius: 24,
     },
     backBtn: {
-        width: 36,
-        height: 36,
-        borderRadius: 12,
-        backgroundColor: 'rgba(255,255,255,0.18)',
+        width: 34,
+        height: 34,
+        backgroundColor: '#242424',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        borderRadius: 8,
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 24,
     },
-    headerTitle: {
-        fontSize: 26,
-        fontWeight: '800',
-        color: semanticColors.textInverse,
-        letterSpacing: 0.1,
+    navLabel: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#ffffff',
     },
-    headerSub: {
-        fontSize: 13,
-        color: 'rgba(255,255,255,0.72)',
-        marginTop: 2,
-        marginBottom: 14,
+
+    // ── Hero ──
+    hero: {
+        paddingHorizontal: 20,
+        paddingBottom: 32,
     },
-    pillRow: {
+    heroTop: {
         flexDirection: 'row',
-        gap: 8,
-        marginBottom: 12,
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 4,
     },
-    pill: {
+    heroTitle: {
+        fontSize: 26,
+        fontWeight: '700',
+        color: '#ffffff',
+        letterSpacing: -0.3,
+        lineHeight: 31,
+        flex: 1,
+        marginRight: 10,
+    },
+    activePill: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 5,
-        backgroundColor: 'rgba(255,255,255,0.16)',
-        paddingHorizontal: 11,
         paddingVertical: 5,
+        paddingHorizontal: 12,
         borderRadius: 20,
+        backgroundColor: 'rgba(0,214,143,0.15)',
+        borderWidth: 1,
+        borderColor: 'rgba(0,214,143,0.35)',
+        marginTop: 4,
+        flexShrink: 0,
     },
-    pillTxt: {
-        color: semanticColors.textInverse,
+    activeDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: '#00d68f',
+    },
+    activePillTxt: {
         fontSize: 12,
         fontWeight: '600',
+        color: '#00d68f',
     },
-    badgeRow: {
+    heroSub: {
+        fontSize: 13,
+        color: 'rgba(255,255,255,0.5)',
+        marginBottom: 28,
+        marginTop: 6,
+    },
+    pctRow: {
         flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-end',
+        marginBottom: 10,
+    },
+    pctNum: {
+        fontSize: 38,
+        fontWeight: '700',
+        color: '#ffffff',
+        lineHeight: 42,
+    },
+    pctSym: {
+        fontSize: 20,
+        fontWeight: '500',
+        color: 'rgba(255,255,255,0.5)',
+        marginBottom: 4,
+        marginLeft: 2,
+    },
+    pctAmounts: {
+        fontSize: 13,
+        color: 'rgba(255,255,255,0.5)',
+    },
+    progTrack: {
+        height: 7,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        borderRadius: 4,
+        overflow: 'hidden',
+        marginBottom: 22,
+    },
+    progFill: {
+        height: '100%',
+        borderRadius: 4,
+        backgroundColor: '#6eb5ff',
+    },
+    statsRow: {
+        flexDirection: 'row',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        borderRadius: 12,
+        overflow: 'hidden',
+    },
+    statChip: {
+        flex: 1,
+        paddingVertical: 14,
+        alignItems: 'center',
+    },
+    statChipMid: {
+        borderLeftWidth: 1,
+        borderRightWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+    },
+    statN: {
+        fontSize: 17,
+        fontWeight: '700',
+        color: '#ffffff',
+    },
+    statL: {
+        fontSize: 11,
+        color: 'rgba(255,255,255,0.5)',
+        marginTop: 3,
+    },
+
+    // ── Section label ──
+    secLabel: {
+        fontSize: 12,
+        fontWeight: '500',
+        color: 'rgba(255,255,255,0.5)',
+        paddingHorizontal: 20,
+        paddingTop: 28,
+        paddingBottom: 10,
+        letterSpacing: 0.2,
+    },
+
+    // ── Details card ──
+    detailsCard: {
+        marginHorizontal: 16,
+        backgroundColor: '#242424',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        overflow: 'hidden',
+    },
+
+    // ── Members grid ──
+    membersGrid: {
+        paddingHorizontal: 16,
+    },
+    membersScroll: {
+        paddingHorizontal: 16,
+        paddingBottom: 8,
         gap: 8,
     },
-    rolePill: {
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        borderRadius: 20,
+
+    // ── Join requests (admin) ──
+    joinRequestsCard: {
+        backgroundColor: '#242424',
+        marginHorizontal: 16,
+        marginTop: 12,
+        borderRadius: 18,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
     },
-    rolePillTxt: {
-        color: semanticColors.textInverse,
-        fontSize: 12,
-        fontWeight: '700',
-    },
-    statusPill: {
+    joinRequestsHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 5,
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        borderRadius: 20,
+        marginBottom: 14,
+        gap: 8,
     },
-    statusDotHdr: {
-        width: 7,
-        height: 7,
-        borderRadius: 4,
+    joinRequestsTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#ffffff',
     },
-    statusPillTxt: {
+    countBadge: {
+        backgroundColor: 'rgba(245,158,11,1)',
+        borderRadius: 12,
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+    },
+    countTxt: {
+        color: '#ffffff',
         fontSize: 12,
         fontWeight: '700',
     },
 
+    // ── Action buttons ──
+    actions: {
+        flexDirection: 'row',
+        gap: 10,
+        marginHorizontal: 16,
+        marginTop: 28,
+    },
+    btnP: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 12,
+        backgroundColor: '#00d68f',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    btnPTxt: {
+        color: '#0a1a0f',
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    btnS: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 12,
+        backgroundColor: '#242424',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+    },
+    btnSTxt: {
+        color: '#ffffff',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+
+    // ── Loading / error ──
     loadingCenter: {
         flex: 1,
         alignItems: 'center',
@@ -1426,86 +1296,11 @@ const styles = StyleSheet.create({
     },
     loadingText: {
         fontSize: 15,
-        color: semanticColors.textSecondary,
-    },
-
-    joinBanner: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: semanticColors.warningLight,
-        borderLeftWidth: 4,
-        borderLeftColor: semanticColors.warning,
-        marginHorizontal: 16,
-        marginTop: 16,
-        padding: 14,
-        borderRadius: 12,
-        gap: 12,
-    },
-    joinTitle: {
-        fontSize: 13,
-        fontWeight: '700',
-        color: semanticColors.warning,
-        marginBottom: 2,
-    },
-    joinSub: {
-        fontSize: 12,
-        color: semanticColors.textSecondary,
-    },
-    joinBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 5,
-        backgroundColor: semanticColors.buttonPrimary,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: 10,
-    },
-    joinBtnTxt: {
-        color: semanticColors.textInverse,
-        fontSize: 13,
-        fontWeight: '700',
-    },
-
-    card: {
-        backgroundColor: semanticColors.containerBackground,
-        marginHorizontal: 16,
-        marginTop: 12,
-        borderRadius: 18,
-        padding: 20,
-        borderWidth: 1,
-        borderColor: semanticColors.borderLight,
-    },
-    cardTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: semanticColors.textPrimary,
-        marginBottom: 8,
-    },
-    sectionTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: semanticColors.textPrimary,
-    },
-    memberHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 14,
-        gap: 8,
-    },
-    countBadge: {
-        backgroundColor: semanticColors.buttonPrimary,
-        borderRadius: 12,
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-    },
-    countTxt: {
-        color: semanticColors.textInverse,
-        fontSize: 12,
-        fontWeight: '700',
+        color: 'rgba(255,255,255,0.5)',
     },
     emptyTxt: {
         fontSize: 14,
-        color: semanticColors.textSecondary,
+        color: 'rgba(255,255,255,0.5)',
         fontStyle: 'italic',
         textAlign: 'center',
         paddingVertical: 20,

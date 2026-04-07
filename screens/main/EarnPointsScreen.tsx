@@ -129,8 +129,8 @@ const ACTION_META: Record<
     },
     invite_accepted: {
         icon: "person-add-outline",
-        color: D.purple as string,
-        colorSoft: D.purpleSoft as string,
+        color: D.accent as string,
+        colorSoft: D.accentSoft as string,
         navigateTo: "CreateGroup",
     },
     cycle_completed: {
@@ -140,8 +140,8 @@ const ACTION_META: Record<
     },
     profile_completed: {
         icon: "person-circle-outline",
-        color: D.purple as string,
-        colorSoft: D.purpleSoft as string,
+        color: D.accent2 as string,
+        colorSoft: D.accent2Soft as string,
         navigateTo: "Profile",
     },
     identity_verified: {
@@ -384,7 +384,7 @@ export default function EarnPointsScreen() {
             />
 
             {/* ── Header ── */}
-            <LinearGradient colors={["#1a1c3a", "#2a1850"]} style={styles.header}>
+            <LinearGradient colors={["#161616", "#1e1e1e"]} style={styles.header}>
                 <View style={{ paddingTop: (StatusBar.currentHeight ?? 44) + 8 }}>
                     <TouchableOpacity
                         style={styles.backBtn}
@@ -421,6 +421,17 @@ export default function EarnPointsScreen() {
                 >
                     {/* ── Balance Card ── */}
                     <View style={styles.card}>
+                        {/* Gradient background */}
+                        <LinearGradient
+                            colors={['#1e1e1e', reached ? '#00c89624' : '#00d68f24']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={StyleSheet.absoluteFill}
+                        />
+                        {/* Ghost icon */}
+                        <View style={styles.balanceGhostIcon} pointerEvents="none">
+                            <Ionicons name="star" size={90} color={reached ? '#00c896' : '#00d68f'} />
+                        </View>
                         <View style={styles.balanceRow}>
                             <View>
                                 <Text style={styles.balancePts}>
@@ -502,6 +513,17 @@ export default function EarnPointsScreen() {
                                 <>
                                     <SecLabel text="Weekly Login Streak" />
                                     <View style={styles.card}>
+                                        {/* Gradient background */}
+                                        <LinearGradient
+                                            colors={['#1e1e1e', '#6eb5ff1a']}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 1 }}
+                                            style={StyleSheet.absoluteFill}
+                                        />
+                                        {/* Ghost icon */}
+                                        <View style={styles.streakGhostIcon} pointerEvents="none">
+                                            <Ionicons name="flame" size={72} color="#6eb5ff" />
+                                        </View>
                                         <View style={styles.streakHeader}>
                                             <View>
                                                 <Text style={styles.streakTitle}>
@@ -710,7 +732,7 @@ export default function EarnPointsScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const CARD_BG = "rgba(0,20,60,0.90)";
+const CARD_BG = "#242424";
 
 const styles = StyleSheet.create({
     root: {
@@ -783,12 +805,26 @@ const styles = StyleSheet.create({
 
     // Cards
     card: {
-        backgroundColor: CARD_BG,
+        overflow: "hidden",
         borderWidth: 1,
-        borderColor: D.border as string,
+        borderColor: "rgba(255,255,255,0.08)",
         borderRadius: 18,
         padding: 18,
         marginBottom: 12,
+    },
+    balanceGhostIcon: {
+        position: "absolute",
+        right: -18,
+        bottom: -14,
+        opacity: 0.08,
+        transform: [{ rotate: "-15deg" }],
+    },
+    streakGhostIcon: {
+        position: "absolute",
+        right: -12,
+        bottom: -12,
+        opacity: 0.08,
+        transform: [{ rotate: "8deg" }],
     },
 
     // Balance
@@ -834,15 +870,15 @@ const styles = StyleSheet.create({
 
     // Progress
     progressTrack: {
-        height: 6,
-        backgroundColor: D.border as string,
-        borderRadius: 3,
+        height: 8,
+        backgroundColor: "rgba(255,255,255,0.08)",
+        borderRadius: 4,
         overflow: "hidden",
-        marginBottom: 5,
+        marginBottom: 8,
     },
     progressFill: {
         height: "100%",
-        borderRadius: 3,
+        borderRadius: 4,
     },
     progressLabels: {
         flexDirection: "row",

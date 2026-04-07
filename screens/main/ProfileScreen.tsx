@@ -196,11 +196,15 @@ const ProfileScreen: React.FC = () => {
                 >
                 {/* ── Header ── */}
                 <LinearGradient
-                    colors={['#00246B', '#1a3a7a']}
+                    colors={['#161616', '#00d68f1a']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.header}
                 >
+                    {/* Ghost icon */}
+                    <View style={styles.headerGhostIcon} pointerEvents="none">
+                        <Ionicons name="person" size={130} color="#00d68f" />
+                    </View>
                     <SafeAreaView>
                         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
                             <Ionicons name="arrow-back" size={16} color="#fff" />
@@ -209,7 +213,7 @@ const ProfileScreen: React.FC = () => {
                         <View style={styles.avatarSection}>
                             <View style={styles.avatarOuter}>
                                 <LinearGradient
-                                    colors={['#2a52a0', '#CADCFC']}
+                                    colors={['#00d68f', '#6eb5ff']}
                                     style={styles.avatar}
                                 >
                                     <Text style={styles.avatarText}>{initials(name)}</Text>
@@ -261,7 +265,7 @@ const ProfileScreen: React.FC = () => {
                                         onPress={handleSave}
                                     >
                                         <LinearGradient
-                                            colors={['#2a52a0', '#CADCFC']}
+                                            colors={['#00d68f', '#00bb7a']}
                                             start={{ x: 0, y: 0 }}
                                             end={{ x: 1, y: 0 }}
                                             style={styles.saveBtnGrad}
@@ -285,7 +289,7 @@ const ProfileScreen: React.FC = () => {
                     {!editing && (
                         <TouchableOpacity style={styles.editProfileBtn} onPress={() => setEditing(true)}>
                             <LinearGradient
-                                colors={['#2a52a0', '#CADCFC']}
+                                colors={['#00d68f', '#00bb7a']}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 0 }}
                                 style={styles.editProfileGrad}
@@ -373,7 +377,7 @@ const ProfileScreen: React.FC = () => {
                                         disabled={passwordLoading}
                                     >
                                         <LinearGradient
-                                            colors={['#2a52a0', '#CADCFC']}
+                                            colors={['#00d68f', '#00bb7a']}
                                             start={{ x: 0, y: 0 }}
                                             end={{ x: 1, y: 0 }}
                                             style={styles.saveBtnGrad}
@@ -437,9 +441,17 @@ const styles = StyleSheet.create({
 
     // Header
     header: {
+        overflow: 'hidden',
         paddingHorizontal: 20,
         paddingBottom: 32,
         paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight ?? 24 : 0,
+    },
+    headerGhostIcon: {
+        position: 'absolute',
+        right: -30,
+        bottom: -20,
+        opacity: 0.06,
+        transform: [{ rotate: '-8deg' }],
     },
     backBtn: {
         flexDirection: 'row',
