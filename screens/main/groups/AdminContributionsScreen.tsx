@@ -10,7 +10,12 @@ import {
   Alert,
   Linking,
   RefreshControl,
+  Modal,
+  Image,
+  Dimensions,
 } from 'react-native';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -27,22 +32,50 @@ type RootStackParamList = {
   AdminContributions: {
     group_id: number;
     group_title: string;
+    member_only?: boolean;
   };
   Signin: undefined;
 };
 
+interface ContributionUser {
+  id: string;
+  name: string;
+  email: string;
+  mobile?: string | null;
+  status: string;
+  points?: number;
+}
+
+interface ContributionGroup {
+  id: string;
+  title: string;
+  total_users: number;
+  target_amount: string;
+  payable_amount: string;
+  payment_out_day?: number | null;
+  contribution_frequency?: string;
+  status: string;
+  expected_start_date?: string | null;
+  expected_end_date?: string | null;
+}
+
 interface Contribution {
-  id: number;
-  user_id: number;
-  user_name: string;
-  user_email: string;
+  id: string;
+  group_id: string;
+  user_id: string;
   payout_position?: number;
-  amount: number;
-  note?: string;
-  proof_url?: string;
+  cycle_number: number;
+  amount: string;
+  note?: string | null;
+  proof_path?: string | null;
+  proof_public_id?: string | null;
+  due_date: string;
   status: 'pending' | 'under_review' | 'verified' | 'rejected';
+  submitted_at: string;
   created_at: string;
   updated_at: string;
+  user?: ContributionUser;
+  group?: ContributionGroup;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -82,39 +115,359 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'rejected',     label: 'Rejected' },
 ];
 
+// ─── Detail Modal ─────────────────────────────────────────────────────────────
+
+const isImageUrl = (url: string) => /\.(jpg|jpeg|png|webp)(\?.*)?$/i.test(url);
+
+interface DetailModalProps {
+  item: Contribution | null;
+  visible: boolean;
+  onClose: () => void;
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+  processing: 'approve' | 'reject' | null;
+  readOnly?: boolean;
+}
+
+const DetailModal: React.FC<DetailModalProps> = ({ item, visible, onClose, onApprove, onReject, processing, readOnly = false }) => {
+  if (!item) return null;
+  const s = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.pending;
+  const isActionable = !readOnly && (item.status === 'pending' || item.status === 'under_review');
+  const isProcessing = processing !== null;
+  const amount = parseFloat(item.amount);
+  const proof = item.proof_path ?? null;
+  const proofIsImage = proof ? isImageUrl(proof) : false;
+
+  const openInBrowser = async () => {
+    if (!proof) return;
+    try {
+      await Linking.openURL(proof);
+    } catch {
+      Alert.alert('Error', 'Could not open the file in browser.');
+    }
+  };
+
+  const DetailRow = ({ icon, label, value, valueColor }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; valueColor?: string }) => (
+    <View style={modalStyles.detailRow}>
+      <View style={modalStyles.detailIconWrap}>
+        <Ionicons name={icon} size={14} color={D.textMuted} />
+      </View>
+      <Text style={modalStyles.detailLabel}>{label}</Text>
+      <Text style={[modalStyles.detailValue, valueColor ? { color: valueColor } : {}]} numberOfLines={2}>{value}</Text>
+    </View>
+  );
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent presentationStyle="overFullScreen" onRequestClose={onClose}>
+      <View style={modalStyles.overlay}>
+        <TouchableOpacity style={modalStyles.backdrop} activeOpacity={1} onPress={onClose} />
+        <View style={modalStyles.sheet}>
+          {/* ── Handle ── */}
+          <View style={modalStyles.handle} />
+
+          {/* ── Header ── */}
+          <View style={modalStyles.sheetHeader}>
+            <View style={modalStyles.avatarWrap}>
+              <LinearGradient colors={['rgba(110,181,255,0.25)', 'rgba(110,181,255,0.10)']} style={modalStyles.avatar}>
+                <Text style={modalStyles.avatarTxt}>{getInitials(item.user?.name)}</Text>
+              </LinearGradient>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={modalStyles.sheetName} numberOfLines={1}>{item.user?.name ?? 'Member'}</Text>
+              {item.user?.email ? <Text style={modalStyles.sheetEmail} numberOfLines={1}>{item.user.email}</Text> : null}
+              {item.payout_position ? <Text style={modalStyles.sheetSlot}>Slot #{item.payout_position}</Text> : null}
+            </View>
+            <TouchableOpacity style={modalStyles.closeBtn} onPress={onClose} activeOpacity={0.8}>
+              <Ionicons name="close" size={16} color={D.textSub} />
+            </TouchableOpacity>
+          </View>
+
+          {/* ── Status pill ── */}
+          <View style={[modalStyles.statusBanner, { backgroundColor: s.bg }]}>
+            <Ionicons name={s.icon} size={15} color={s.color} />
+            <Text style={[modalStyles.statusBannerText, { color: s.color }]}>{s.label}</Text>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={modalStyles.scrollContent}>
+            {/* ── Details ── */}
+            <View style={modalStyles.detailsCard}>
+              <DetailRow icon="cash-outline"         label="Amount"    value={formatCurrency(amount)} valueColor={D.primary} />
+              <DetailRow icon="repeat-outline"       label="Cycle"     value={`Cycle ${item.cycle_number}`} />
+              <DetailRow icon="calendar-outline"     label="Due date"  value={formatDate(item.due_date)} />
+              <DetailRow icon="time-outline"         label="Submitted" value={formatDate(item.submitted_at)} />
+              {item.note ? <DetailRow icon="chatbubble-outline" label="Note" value={item.note} /> : null}
+            </View>
+
+            {/* ── Proof ── */}
+            <View style={modalStyles.proofSection}>
+              <View style={modalStyles.proofSectionHeader}>
+                <Ionicons name="document-attach-outline" size={15} color={D.textSub} />
+                <Text style={modalStyles.proofSectionTitle}>Proof of payment</Text>
+              </View>
+
+              {!proof ? (
+                <View style={modalStyles.noProofWrap}>
+                  <Ionicons name="alert-circle-outline" size={24} color={D.textMuted} />
+                  <Text style={modalStyles.noProofText}>No proof was attached to this submission</Text>
+                </View>
+              ) : proofIsImage ? (
+                <View style={modalStyles.imageWrap}>
+                  <Image
+                    source={{ uri: proof }}
+                    style={modalStyles.proofImage}
+                    resizeMode="contain"
+                  />
+                  <TouchableOpacity style={modalStyles.openInBrowserBtn} onPress={openInBrowser} activeOpacity={0.8}>
+                    <Ionicons name="open-outline" size={13} color={D.accent} />
+                    <Text style={modalStyles.openInBrowserText}>Open full size</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity style={modalStyles.pdfBtn} onPress={openInBrowser} activeOpacity={0.8}>
+                  <LinearGradient colors={['rgba(110,181,255,0.12)', 'rgba(110,181,255,0.06)']} style={modalStyles.pdfBtnGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                    <View style={modalStyles.pdfIconWrap}>
+                      <Ionicons name="document-text-outline" size={28} color={D.accent} />
+                    </View>
+                    <Text style={modalStyles.pdfBtnTitle}>Open PDF proof</Text>
+                    <Text style={modalStyles.pdfBtnSub}>Tap to view in browser</Text>
+                    <View style={modalStyles.pdfOpenChip}>
+                      <Ionicons name="open-outline" size={12} color={D.accent} />
+                      <Text style={modalStyles.pdfOpenChipText}>Open</Text>
+                    </View>
+                  </LinearGradient>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* ── Actions ── */}
+            {isActionable && (
+              <View style={modalStyles.actions}>
+                <TouchableOpacity
+                  style={[modalStyles.rejectBtn, isProcessing && modalStyles.btnDisabled]}
+                  onPress={() => onReject(item.id)}
+                  disabled={isProcessing}
+                  activeOpacity={0.8}
+                >
+                  {processing === 'reject'
+                    ? <ActivityIndicator size="small" color={D.danger} />
+                    : <><Ionicons name="close" size={15} color={D.danger} /><Text style={modalStyles.rejectBtnText}>Reject</Text></>
+                  }
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[modalStyles.approveBtn, isProcessing && modalStyles.btnDisabled]}
+                  onPress={() => onApprove(item.id)}
+                  disabled={isProcessing}
+                  activeOpacity={0.85}
+                >
+                  {processing === 'approve'
+                    ? <ActivityIndicator size="small" color="#0a1a0f" />
+                    : <><Ionicons name="checkmark" size={15} color="#0a1a0f" /><Text style={modalStyles.approveBtnText}>Approve</Text></>
+                  }
+                </TouchableOpacity>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+const modalStyles = StyleSheet.create({
+  overlay: { flex: 1, justifyContent: 'flex-end' },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
+  sheet: {
+    backgroundColor: D.bg,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: '90%',
+    borderTopWidth: 1,
+    borderColor: D.border,
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: D.border,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  avatarWrap: { flexShrink: 0 },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarTxt: { fontSize: 17, fontWeight: '800', color: D.accent },
+  sheetName: { fontSize: 15, fontWeight: '700', color: D.text },
+  sheetEmail: { fontSize: 12, color: D.textMuted, marginTop: 2 },
+  sheetSlot: { fontSize: 11, color: D.primary, fontWeight: '600', marginTop: 3 },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: D.surfaceCard,
+    borderWidth: 1,
+    borderColor: D.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginBottom: 4,
+  },
+  statusBannerText: { fontSize: 13, fontWeight: '700' },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 36, gap: 16 },
+  detailsCard: {
+    backgroundColor: D.surfaceCard,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: D.border,
+    overflow: 'hidden',
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: D.border,
+  },
+  detailIconWrap: { width: 20, alignItems: 'center' },
+  detailLabel: { fontSize: 13, color: D.textMuted, width: 70 },
+  detailValue: { flex: 1, fontSize: 13, fontWeight: '600', color: D.text, textAlign: 'right' },
+  proofSection: { gap: 10 },
+  proofSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  proofSectionTitle: { fontSize: 13, fontWeight: '700', color: D.textSub },
+  noProofWrap: {
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: D.surfaceCard,
+    borderRadius: 16,
+    paddingVertical: 28,
+    borderWidth: 1,
+    borderColor: D.border,
+  },
+  noProofText: { fontSize: 13, color: D.textMuted, textAlign: 'center' },
+  imageWrap: {
+    backgroundColor: D.surfaceCard,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: D.border,
+    overflow: 'hidden',
+    gap: 0,
+  },
+  proofImage: {
+    width: SCREEN_WIDTH - 40,
+    height: (SCREEN_WIDTH - 40) * 0.65,
+  },
+  openInBrowserBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: D.border,
+  },
+  openInBrowserText: { fontSize: 13, fontWeight: '600', color: D.accent },
+  pdfBtn: { borderRadius: 16, overflow: 'hidden' },
+  pdfBtnGrad: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    gap: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(110,181,255,0.25)',
+  },
+  pdfIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: 'rgba(110,181,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pdfBtnTitle: { fontSize: 14, fontWeight: '700', color: D.text },
+  pdfBtnSub: { fontSize: 12, color: D.textMuted },
+  pdfOpenChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: 'rgba(110,181,255,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(110,181,255,0.3)',
+  },
+  pdfOpenChipText: { fontSize: 12, fontWeight: '600', color: D.accent },
+  actions: { flexDirection: 'row', gap: 10 },
+  rejectBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: D.dangerSoft,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.30)',
+  },
+  rejectBtnText: { fontSize: 13, fontWeight: '700', color: D.danger },
+  approveBtn: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: D.primary,
+    paddingVertical: 14,
+    borderRadius: 14,
+  },
+  approveBtnText: { fontSize: 13, fontWeight: '700', color: '#0a1a0f' },
+  btnDisabled: { opacity: 0.55 },
+});
+
 // ─── Contribution Card ────────────────────────────────────────────────────────
 
 interface ContributionCardProps {
   item: Contribution;
-  onApprove: (id: number) => void;
-  onReject: (id: number) => void;
+  onPress: (item: Contribution) => void;
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
   processing: 'approve' | 'reject' | null;
+  readOnly?: boolean;
 }
 
-const ContributionCard: React.FC<ContributionCardProps> = ({ item, onApprove, onReject, processing }) => {
+const ContributionCard: React.FC<ContributionCardProps> = ({ item, onPress, onApprove, onReject, processing, readOnly = false }) => {
   const s = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.pending;
-  const isActionable = item.status === 'pending' || item.status === 'under_review';
+  const isActionable = !readOnly && (item.status === 'pending' || item.status === 'under_review');
   const isProcessing = processing !== null;
-
-  const openProof = async () => {
-    if (!item.proof_url) {
-      Alert.alert('No proof', 'This submission did not include a proof URL.');
-      return;
-    }
-    try {
-      const canOpen = await Linking.canOpenURL(item.proof_url);
-      if (canOpen) {
-        await Linking.openURL(item.proof_url);
-      } else {
-        Alert.alert('Cannot open link', 'Unable to open the proof URL on this device.');
-      }
-    } catch {
-      Alert.alert('Error', 'Failed to open proof URL.');
-    }
-  };
+  const amount = parseFloat(item.amount);
+  const hasProof = !!item.proof_path;
 
   return (
-    <View style={cardStyles.card}>
+    <TouchableOpacity style={cardStyles.card} onPress={() => onPress(item)} activeOpacity={0.85}>
       {/* ── Header ── */}
       <View style={cardStyles.header}>
         <View style={cardStyles.avatarWrap}>
@@ -122,19 +475,19 @@ const ContributionCard: React.FC<ContributionCardProps> = ({ item, onApprove, on
             colors={['rgba(110,181,255,0.25)', 'rgba(110,181,255,0.10)']}
             style={cardStyles.avatar}
           >
-            <Text style={cardStyles.avatarTxt}>{getInitials(item.user_name)}</Text>
+            <Text style={cardStyles.avatarTxt}>{getInitials(item.user?.name)}</Text>
           </LinearGradient>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={cardStyles.userName} numberOfLines={1}>{item.user_name}</Text>
-          <Text style={cardStyles.userEmail} numberOfLines={1}>{item.user_email}</Text>
+          <Text style={cardStyles.userName} numberOfLines={1}>{item.user?.name ?? 'Member'}</Text>
+          {item.user?.email ? <Text style={cardStyles.userEmail} numberOfLines={1}>{item.user.email}</Text> : null}
           {item.payout_position ? (
             <Text style={cardStyles.slotLabel}>Slot #{item.payout_position}</Text>
           ) : null}
         </View>
         <View style={{ alignItems: 'flex-end', gap: 4 }}>
-          <Text style={cardStyles.amount}>{formatCurrency(item.amount)}</Text>
-          <Text style={cardStyles.date}>{formatDate(item.created_at)}</Text>
+          <Text style={cardStyles.amount}>{formatCurrency(amount)}</Text>
+          <Text style={cardStyles.date}>{formatDate(item.submitted_at)}</Text>
         </View>
       </View>
 
@@ -144,24 +497,32 @@ const ContributionCard: React.FC<ContributionCardProps> = ({ item, onApprove, on
           <Ionicons name={s.icon} size={12} color={s.color} />
           <Text style={[cardStyles.statusLabel, { color: s.color }]}>{s.label}</Text>
         </View>
-        {item.proof_url ? (
-          <TouchableOpacity style={cardStyles.proofBtn} onPress={openProof} activeOpacity={0.8}>
-            <Ionicons name="document-attach-outline" size={13} color={D.accent} />
-            <Text style={cardStyles.proofBtnText}>View proof</Text>
-          </TouchableOpacity>
+        <View style={cardStyles.cyclePill}>
+          <Ionicons name="repeat-outline" size={11} color={D.textMuted} />
+          <Text style={cardStyles.cyclePillText}>Cycle {item.cycle_number}</Text>
+        </View>
+        {hasProof ? (
+          <View style={cardStyles.proofAttachedPill}>
+            <Ionicons name="document-attach-outline" size={11} color={D.primary} />
+            <Text style={cardStyles.proofAttachedText}>Proof attached</Text>
+          </View>
         ) : (
           <View style={cardStyles.noProofPill}>
-            <Ionicons name="attach-outline" size={12} color={D.textMuted} />
-            <Text style={cardStyles.noProofText}>No proof attached</Text>
+            <Ionicons name="attach-outline" size={11} color={D.textMuted} />
+            <Text style={cardStyles.noProofText}>No proof</Text>
           </View>
         )}
+        <View style={cardStyles.viewDetailChip}>
+          <Text style={cardStyles.viewDetailText}>View</Text>
+          <Ionicons name="chevron-forward" size={11} color={D.accent} />
+        </View>
       </View>
 
-      {/* ── Note ── */}
+      {/* ── Note preview ── */}
       {item.note ? (
         <View style={cardStyles.noteWrap}>
           <Ionicons name="chatbubble-outline" size={12} color={D.textMuted} />
-          <Text style={cardStyles.noteText} numberOfLines={2}>{item.note}</Text>
+          <Text style={cardStyles.noteText} numberOfLines={1}>{item.note}</Text>
         </View>
       ) : null}
 
@@ -170,7 +531,7 @@ const ContributionCard: React.FC<ContributionCardProps> = ({ item, onApprove, on
         <View style={cardStyles.actions}>
           <TouchableOpacity
             style={[cardStyles.rejectBtn, isProcessing && cardStyles.btnDisabled]}
-            onPress={() => onReject(item.id)}
+            onPress={e => { e.stopPropagation?.(); onReject(item.id); }}
             disabled={isProcessing}
             activeOpacity={0.8}
           >
@@ -185,7 +546,7 @@ const ContributionCard: React.FC<ContributionCardProps> = ({ item, onApprove, on
           </TouchableOpacity>
           <TouchableOpacity
             style={[cardStyles.approveBtn, isProcessing && cardStyles.btnDisabled]}
-            onPress={() => onApprove(item.id)}
+            onPress={e => { e.stopPropagation?.(); onApprove(item.id); }}
             disabled={isProcessing}
             activeOpacity={0.85}
           >
@@ -200,7 +561,7 @@ const ContributionCard: React.FC<ContributionCardProps> = ({ item, onApprove, on
           </TouchableOpacity>
         </View>
       )}
-    </View>
+    </TouchableOpacity>
   );
 };
 
@@ -285,24 +646,43 @@ const cardStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(110,181,255,0.25)',
   },
-  proofBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: D.accent,
-  },
-  noProofPill: {
+  cyclePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 20,
     backgroundColor: D.surface,
   },
-  noProofText: {
-    fontSize: 12,
-    color: D.textMuted,
+  cyclePillText: { fontSize: 11, color: D.textMuted },
+  proofAttachedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,214,143,0.10)',
   },
+  proofAttachedText: { fontSize: 11, color: D.primary, fontWeight: '600' },
+  noProofPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 20,
+    backgroundColor: D.surface,
+  },
+  noProofText: { fontSize: 11, color: D.textMuted },
+  viewDetailChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginLeft: 'auto',
+  },
+  viewDetailText: { fontSize: 11, fontWeight: '600', color: D.accent },
   noteWrap: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -362,13 +742,26 @@ const cardStyles = StyleSheet.create({
 export default function AdminContributionsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, 'AdminContributions'>>();
-  const { group_id, group_title } = route.params;
+  const { group_id, group_title, member_only = false } = route.params;
+
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  // ── Load current user ID once ──
+  React.useEffect(() => {
+    AsyncStorage.getItem('user').then(raw => {
+      if (raw) {
+        try { setCurrentUserId(JSON.parse(raw).id ?? null); } catch { /* silent */ }
+      }
+    });
+  }, []);
 
   const [contributions, setContributions] = useState<Contribution[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterKey>('all');
-  const [processing, setProcessing] = useState<{ id: number; action: 'approve' | 'reject' } | null>(null);
+  const [processing, setProcessing] = useState<{ id: string; action: 'approve' | 'reject' } | null>(null);
+  const [selectedItem, setSelectedItem] = useState<Contribution | null>(null);
+  const [detailVisible, setDetailVisible] = useState(false);
 
   // ── Load contributions ──
   const loadContributions = useCallback(async (silent = false) => {
@@ -381,7 +774,8 @@ export default function AdminContributionsScreen() {
         `${Constants.expoConfig?.extra?.apiUrl}/user/group/${group_id}/contributions`,
         { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } },
       );
-      setContributions(res.data?.data ?? []);
+      const allContribs: Contribution[] = res.data?.data?.data ?? [];
+      setContributions(allContribs);
     } catch (err: any) {
       if (err?.response?.status === 401) { navigation.navigate('Signin'); return; }
       if (!silent) Alert.alert('Error', err?.response?.data?.message ?? 'Failed to load contributions.');
@@ -393,12 +787,18 @@ export default function AdminContributionsScreen() {
 
   useFocusEffect(useCallback(() => { loadContributions(); }, [loadContributions]));
 
+  // ── Open detail modal ──
+  const openDetail = (item: Contribution) => {
+    setSelectedItem(item);
+    setDetailVisible(true);
+  };
+
   // ── Approve ──
-  const handleApprove = (contributionId: number) => {
+  const handleApprove = (contributionId: string) => {
     const item = contributions.find(c => c.id === contributionId);
     Alert.alert(
       'Approve contribution',
-      `Confirm ${item?.user_name ?? 'member'}'s payment of ${formatCurrency(item?.amount ?? 0)}?`,
+      `Confirm ${item?.user?.name ?? 'member'}'s payment of ${formatCurrency(parseFloat(item?.amount ?? '0'))}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -410,7 +810,7 @@ export default function AdminContributionsScreen() {
               if (!token) { navigation.navigate('Signin'); return; }
 
               await axios.put(
-                `${Constants.expoConfig?.extra?.apiUrl}/user/group/${group_id}/contributions/${contributionId}/approve`,
+                `${Constants.expoConfig?.extra?.apiUrl}/user/group/${group_id}/contributions/${contributionId}/verify`,
                 {},
                 { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } },
               );
@@ -418,6 +818,8 @@ export default function AdminContributionsScreen() {
               setContributions(prev =>
                 prev.map(c => c.id === contributionId ? { ...c, status: 'verified' } : c),
               );
+              setSelectedItem(prev => prev?.id === contributionId ? { ...prev, status: 'verified' as const } : prev);
+              setDetailVisible(false);
             } catch (err: any) {
               if (err?.response?.status === 401) { navigation.navigate('Signin'); return; }
               Alert.alert('Error', err?.response?.data?.message ?? 'Failed to approve. Please try again.');
@@ -431,11 +833,11 @@ export default function AdminContributionsScreen() {
   };
 
   // ── Reject ──
-  const handleReject = (contributionId: number) => {
+  const handleReject = (contributionId: string) => {
     const item = contributions.find(c => c.id === contributionId);
     Alert.alert(
       'Reject contribution',
-      `Reject ${item?.user_name ?? 'member'}'s payment? They will be notified to resubmit.`,
+      `Reject ${item?.user?.name ?? 'member'}'s payment? They will be notified to resubmit.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -456,6 +858,8 @@ export default function AdminContributionsScreen() {
               setContributions(prev =>
                 prev.map(c => c.id === contributionId ? { ...c, status: 'rejected' } : c),
               );
+              setSelectedItem(prev => prev?.id === contributionId ? { ...prev, status: 'rejected' as const } : prev);
+              setDetailVisible(false);
             } catch (err: any) {
               if (err?.response?.status === 401) { navigation.navigate('Signin'); return; }
               Alert.alert('Error', err?.response?.data?.message ?? 'Failed to reject. Please try again.');
@@ -469,9 +873,12 @@ export default function AdminContributionsScreen() {
   };
 
   // ── Filtered list ──
+  const ownContribs = member_only && currentUserId
+    ? contributions.filter(c => c.user_id === currentUserId)
+    : contributions;
   const displayed = filter === 'all'
-    ? contributions
-    : contributions.filter(c => c.status === filter);
+    ? ownContribs
+    : ownContribs.filter(c => c.status === filter);
 
   const pendingCount = contributions.filter(c => c.status === 'pending' || c.status === 'under_review').length;
 
@@ -485,7 +892,7 @@ export default function AdminContributionsScreen() {
           <Ionicons name="chevron-back" size={18} color={D.textSub} />
         </TouchableOpacity>
         <View style={styles.navMid}>
-          <Text style={styles.navTitle}>Contributions</Text>
+          <Text style={styles.navTitle}>{member_only ? 'My Contributions' : 'Contributions'}</Text>
           <Text style={styles.navSub} numberOfLines={1}>{group_title}</Text>
         </View>
         <TouchableOpacity
@@ -498,13 +905,13 @@ export default function AdminContributionsScreen() {
       </View>
 
       {/* ── Stats banner ── */}
-      {!loading && contributions.length > 0 && (
+      {!loading && ownContribs.length > 0 && (
         <View style={styles.statsBanner}>
           {[
-            { label: 'Total',    value: String(contributions.length),                                  color: D.textSub },
-            { label: 'Pending',  value: String(pendingCount),                                          color: pendingCount > 0 ? D.warn : D.textSub },
-            { label: 'Verified', value: String(contributions.filter(c => c.status === 'verified').length), color: D.primary },
-            { label: 'Rejected', value: String(contributions.filter(c => c.status === 'rejected').length), color: D.danger },
+            { label: 'Total',    value: String(ownContribs.length),                                        color: D.textSub },
+            { label: 'Pending',  value: String(ownContribs.filter(c => c.status === 'pending' || c.status === 'under_review').length), color: pendingCount > 0 ? D.warn : D.textSub },
+            { label: 'Verified', value: String(ownContribs.filter(c => c.status === 'verified').length),   color: D.primary },
+            { label: 'Rejected', value: String(ownContribs.filter(c => c.status === 'rejected').length),   color: D.danger },
           ].map(stat => (
             <View key={stat.label} style={styles.statItem}>
               <Text style={[styles.statValue, { color: stat.color }]}>{stat.value}</Text>
@@ -524,8 +931,8 @@ export default function AdminContributionsScreen() {
         {FILTERS.map(f => {
           const isActive = filter === f.key;
           const count = f.key === 'all'
-            ? contributions.length
-            : contributions.filter(c => c.status === f.key).length;
+            ? ownContribs.length
+            : ownContribs.filter(c => c.status === f.key).length;
           return (
             <TouchableOpacity
               key={f.key}
@@ -572,17 +979,17 @@ export default function AdminContributionsScreen() {
                 <Ionicons name="receipt-outline" size={32} color={D.textMuted} />
               </View>
               <Text style={styles.emptyTitle}>
-                {filter === 'all' ? 'No contributions yet' : `No ${filter.replace('_', ' ')} contributions`}
+                {filter === 'all' ? (member_only ? 'No contributions yet' : 'No contributions yet') : `No ${filter.replace('_', ' ')} contributions`}
               </Text>
               <Text style={styles.emptyText}>
                 {filter === 'all'
-                  ? 'Member contributions will appear here once submitted'
+                  ? (member_only ? 'Your contributions to this group will appear here' : 'Member contributions will appear here once submitted')
                   : 'Try a different filter to see other submissions'}
               </Text>
             </View>
           ) : (
             <>
-              {pendingCount > 0 && filter === 'all' && (
+              {pendingCount > 0 && filter === 'all' && !member_only && (
                 <View style={styles.actionRequiredBanner}>
                   <LinearGradient
                     colors={['rgba(245,158,11,0.12)', 'rgba(245,158,11,0.06)']}
@@ -600,15 +1007,27 @@ export default function AdminContributionsScreen() {
                 <ContributionCard
                   key={item.id}
                   item={item}
+                  onPress={openDetail}
                   onApprove={handleApprove}
                   onReject={handleReject}
                   processing={processing?.id === item.id ? processing.action : null}
+                  readOnly={member_only}
                 />
               ))}
             </>
           )}
         </ScrollView>
       )}
+
+      <DetailModal
+        item={selectedItem}
+        visible={detailVisible}
+        onClose={() => setDetailVisible(false)}
+        onApprove={handleApprove}
+        onReject={handleReject}
+        processing={selectedItem && processing?.id === selectedItem.id ? processing.action : null}
+        readOnly={member_only}
+      />
     </SafeAreaView>
   );
 }

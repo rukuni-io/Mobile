@@ -39,21 +39,32 @@ interface GroupUser {
     };
 }
 
+interface GroupContribution {
+    id: string;
+    user_id: string;
+    cycle_number: number;
+    amount: string;
+    status: 'pending' | 'under_review' | 'verified' | 'rejected';
+    submitted_at: string;
+}
+
 interface Group {
     id: string;
     owner_id: string;
     title: string;
-    target_amount: number;
-    payable_amount?: number;
+    target_amount: string;
+    payable_amount?: string;
     total_users: number;
     active_members_count: number;
     pending_members_count?: number;
-    current_month?: number;
     expected_start_date?: string;
     expected_end_date?: string;
     payment_out_day?: number;
+    contribution_frequency?: string;
+    payment_out_weekday?: number | null;
     status?: string;
     users: Array<GroupUser>;
+    contributions?: GroupContribution[];
 }
 
 interface JoinRequest {
@@ -81,12 +92,14 @@ type RootStackParamList = {
         group_id: string;
         group_title: string;
         payable_amount: number;
+        cycle_number: number;
         payout_position?: number;
         payment_out_day?: number;
     };
     AdminContributions: {
         group_id: string;
         group_title: string;
+        member_only?: boolean;
     };
     Signin: undefined;
 };
@@ -864,12 +877,17 @@ const GroupDetailsScreen = () => {
         );
     }
 
-    const monthly = group.payable_amount
-        ?? (group.total_users ? group.target_amount / group.total_users : 0);
-    const collected = monthly * (group.active_members_count ?? 0) * Math.max(group.current_month ?? 0, 0);
-    const pct = group.target_amount > 0
-        ? Math.min(100, Math.round((collected / group.target_amount) * 100))
+    const targetAmount  = parseFloat(group.target_amount);
+    const monthly = parseFloat(group.payable_amount ?? '0')
+        || (group.total_users ? targetAmount / group.total_users : 0);
+    const verifiedContribs = (group.contributions ?? []).filter(c => c.status === 'verified');
+    const collected = verifiedContribs.reduce((sum, c) => sum + parseFloat(c.amount), 0);
+    const pct = targetAmount > 0
+        ? Math.min(100, Math.round((collected / targetAmount) * 100))
         : 0;
+    const currentCycle = group.contributions && group.contributions.length > 0
+        ? Math.max(...group.contributions.map(c => c.cycle_number))
+        : 1;
 
     const adminUser = group.users.find(u => u.pivot.role?.toLowerCase() === 'admin');
     const adminDisplayName = adminUser?.name
@@ -923,7 +941,7 @@ const GroupDetailsScreen = () => {
                                 <Text style={styles.pctSym}>%</Text>
                             </View>
                             <Text style={styles.pctAmounts}>
-                                {formatCurrency(collected)} of {formatCurrency(group.target_amount)}
+                                {formatCurrency(collected)} of {formatCurrency(targetAmount)}
                             </Text>
                         </View>
 
@@ -952,7 +970,10 @@ const GroupDetailsScreen = () => {
                     {/* ── Group details ── */}
                     <Text style={styles.secLabel}>Group details</Text>
                     <View style={styles.detailsCard}>
-                        <DetailsRow label="Target amount" value={formatCurrency(group.target_amount)} />
+                        <DetailsRow label="Target amount" value={formatCurrency(targetAmount)} />
+                        {group.contribution_frequency ? (
+                            <DetailsRow label="Frequency" value={capitalize(group.contribution_frequency)} />
+                        ) : null}
                         {group.expected_start_date ? (
                             <DetailsRow label="Start date" value={group.expected_start_date} />
                         ) : null}
@@ -1030,7 +1051,8 @@ const GroupDetailsScreen = () => {
                                 ? () => navigation.navigate('Contribute', {
                                     group_id: group.id,
                                     group_title: group.title,
-                                    payable_amount: group.payable_amount ?? 0,
+                                    payable_amount: parseFloat(group.payable_amount ?? '0'),
+                                    cycle_number: currentCycle,
                                     payout_position: myPosition ?? undefined,
                                     payment_out_day: group.payment_out_day,
                                 })
@@ -1049,10 +1071,24 @@ const GroupDetailsScreen = () => {
                                 onPress={() => navigation.navigate('AdminContributions', {
                                     group_id: group.id,
                                     group_title: group.title,
+                                    member_only: false,
                                 })}
                                 activeOpacity={0.85}
                             >
                                 <Text style={[styles.btnSTxt, { color: '#00d68f' }]}>Review Contributions</Text>
+                            </TouchableOpacity>
+                        )}
+                        {is_active && role.toLowerCase() !== 'admin' && (
+                            <TouchableOpacity
+                                style={[styles.btnS, { borderColor: 'rgba(110,181,255,0.35)', backgroundColor: 'rgba(110,181,255,0.08)' }]}
+                                onPress={() => navigation.navigate('AdminContributions', {
+                                    group_id: group.id,
+                                    group_title: group.title,
+                                    member_only: true,
+                                })}
+                                activeOpacity={0.85}
+                            >
+                                <Text style={[styles.btnSTxt, { color: '#6eb5ff' }]}>My Contributions</Text>
                             </TouchableOpacity>
                         )}
                     </View>

@@ -18,6 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import Constants from 'expo-constants';
+import * as DocumentPicker from 'expo-document-picker';
 import { D } from '../../../theme/tokens';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -27,19 +28,45 @@ type RootStackParamList = {
     group_id: number;
     group_title: string;
     payable_amount: number;
+    cycle_number: number;
     payout_position?: number;
     payment_out_day?: number;
   };
   Signin: undefined;
 };
 
-interface Transaction {
-  id: number;
-  type: string;
-  description: string;
-  amount: number;
+interface ContributionUser {
+  id: string;
+  name: string;
+  email: string;
+  mobile?: string | null;
+}
+
+interface ContributionGroup {
+  id: string;
+  title: string;
+  payable_amount: string;
+  contribution_frequency?: string;
+  payment_out_day?: number | null;
+  status: string;
+}
+
+interface Contribution {
+  id: string;
+  group_id: string;
+  user_id: string;
+  cycle_number: number;
+  amount: string;
+  proof_path: string | null;
+  proof_public_id?: string | null;
+  note: string | null;
+  due_date: string;
   status: 'verified' | 'pending' | 'under_review' | 'rejected';
+  submitted_at: string;
   created_at: string;
+  updated_at: string;
+  user?: ContributionUser;
+  group?: ContributionGroup;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -71,34 +98,43 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
   rejected:    { label: 'Rejected',      color: D.danger,    bg: D.dangerSoft,             icon: 'close-circle' },
 };
 
-// ─── Transaction Row ─────────────────────────────────────────────────────────
+// ─── Contribution Row ────────────────────────────────────────────────────────
 
-const TxRow: React.FC<{ tx: Transaction; groupTitle: string; slotLabel: string }> = ({ tx, groupTitle, slotLabel }) => {
+const TxRow: React.FC<{ tx: Contribution; groupTitle: string }> = ({ tx, groupTitle }) => {
   const s = STATUS_CONFIG[tx.status] ?? STATUS_CONFIG.pending;
-  const isDebit = tx.amount < 0;
+  const amount = parseFloat(tx.amount);
+  const hasProof = !!tx.proof_path;
 
   return (
     <View style={txStyles.row}>
-      <View style={[txStyles.iconWrap, { backgroundColor: isDebit ? 'rgba(239,68,68,0.12)' : 'rgba(0,214,143,0.12)' }]}>
-        <Ionicons
-          name={isDebit ? 'arrow-up' : 'arrow-down'}
-          size={18}
-          color={isDebit ? D.danger : D.primary}
-        />
+      <View style={[txStyles.iconWrap, { backgroundColor: 'rgba(0,214,143,0.12)' }]}>
+        <Ionicons name="arrow-up-circle-outline" size={18} color={D.primary} />
       </View>
       <View style={txStyles.meta}>
-        <Text style={txStyles.title} numberOfLines={1}>{tx.description || 'Monthly contribution'}</Text>
-        <Text style={txStyles.sub}>{groupTitle} · {slotLabel}</Text>
-        <View style={[txStyles.statusPill, { backgroundColor: s.bg }]}>
-          <Ionicons name={s.icon} size={11} color={s.color} />
-          <Text style={[txStyles.statusLabel, { color: s.color }]}>{s.label}</Text>
+        <Text style={txStyles.title} numberOfLines={1}>
+          {tx.note || `Cycle ${tx.cycle_number} contribution`}
+        </Text>
+        <Text style={txStyles.sub}>
+          {groupTitle} · Due {formatDate(tx.due_date)}
+        </Text>
+        <View style={txStyles.pillRow}>
+          <View style={[txStyles.statusPill, { backgroundColor: s.bg }]}>
+            <Ionicons name={s.icon} size={11} color={s.color} />
+            <Text style={[txStyles.statusLabel, { color: s.color }]}>{s.label}</Text>
+          </View>
+          {hasProof && (
+            <View style={txStyles.proofPill}>
+              <Ionicons name="attach-outline" size={11} color={D.textMuted} />
+              <Text style={txStyles.proofPillText}>Proof attached</Text>
+            </View>
+          )}
         </View>
       </View>
       <View style={txStyles.right}>
-        <Text style={[txStyles.amount, { color: isDebit ? D.danger : D.primary }]}>
-          {isDebit ? '' : '+'}{formatCurrency(Math.abs(tx.amount))}
+        <Text style={[txStyles.amount, { color: D.primary }]}>
+          {formatCurrency(amount)}
         </Text>
-        <Text style={txStyles.date}>{formatDate(tx.created_at)}</Text>
+        <Text style={txStyles.date}>{formatDate(tx.submitted_at)}</Text>
       </View>
     </View>
   );
@@ -125,6 +161,7 @@ const txStyles = StyleSheet.create({
   meta: { flex: 1, gap: 3 },
   title: { fontSize: 14, fontWeight: '600', color: D.text },
   sub: { fontSize: 12, color: D.textMuted },
+  pillRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 2 },
   statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -133,9 +170,20 @@ const txStyles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 20,
-    marginTop: 2,
   },
   statusLabel: { fontSize: 11, fontWeight: '600' },
+  proofPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: D.border,
+  },
+  proofPillText: { fontSize: 11, color: D.textMuted },
   right: { alignItems: 'flex-end', gap: 4 },
   amount: { fontSize: 15, fontWeight: '700' },
   date: { fontSize: 11, color: D.textMuted },
@@ -150,6 +198,7 @@ export default function ContributeScreen() {
     group_id,
     group_title,
     payable_amount,
+    cycle_number,
     payout_position,
     payment_out_day,
   } = route.params;
@@ -157,22 +206,30 @@ export default function ContributeScreen() {
   const [note, setNote] = useState('');
   const [proofFile, setProofFile] = useState<{ name: string; uri: string; mimeType?: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactions, setTransactions] = useState<Contribution[]>([]);
   const [txLoading, setTxLoading] = useState(true);
+  const [txPage, setTxPage] = useState(1);
+  const [txLastPage, setTxLastPage] = useState(1);
 
   const slotLabel = payout_position ? `Slot ${payout_position}` : 'Member';
   const dueDate = getPaymentDueDate(payment_out_day);
 
-  // ── Load transaction history ──
-  const loadTransactions = useCallback(async () => {
+  // ── Load contribution history ──
+  const loadTransactions = useCallback(async (page = 1) => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) return;
       const res = await axios.get(
-        `${Constants.expoConfig?.extra?.apiUrl}/user/group/${group_id}/transactions`,
-        { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } },
+        `${Constants.expoConfig?.extra?.apiUrl}/user/group/${group_id}/contributions`,
+        {
+          params: { page },
+          headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        },
       );
-      setTransactions(res.data?.data ?? []);
+      const paginated = res.data?.data;
+      setTransactions(prev => page === 1 ? (paginated?.data ?? []) : [...prev, ...(paginated?.data ?? [])]);
+      setTxLastPage(paginated?.last_page ?? 1);
+      setTxPage(page);
     } catch {
       // silent — history is supplementary
     } finally {
@@ -180,21 +237,34 @@ export default function ContributeScreen() {
     }
   }, [group_id]);
 
-  useEffect(() => { loadTransactions(); }, [loadTransactions]);
+  useEffect(() => { loadTransactions(1); }, [loadTransactions]);
+
+  // ── Compute due_date as YYYY-MM-DD from payment_out_day ──
+  const getDueDate = (): string => {
+    const today = new Date();
+    const day = payment_out_day ?? today.getDate();
+    const year = today.getFullYear();
+    const month = today.getDate() >= day ? today.getMonth() + 1 : today.getMonth();
+    const mm = String(month + (today.getDate() >= day ? 0 : 0)).padStart(2, '0');
+    // Use current month if day hasn't passed yet, otherwise next month
+    const targetMonth = today.getDate() <= day ? today.getMonth() : today.getMonth() + 1;
+    const date = new Date(year, targetMonth, day);
+    return date.toISOString().split('T')[0];
+  };
 
   // ── Pick proof file ──
-  const pickProof = () => {
-    Alert.alert(
-      'Attach Proof',
-      'Please have your payment screenshot or bank receipt ready to submit.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm',
-          onPress: () => setProofFile({ name: 'payment_proof.jpg', uri: 'local://proof' }),
-        },
-      ],
-    );
+  const pickProof = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      setProofFile({ name: asset.name, uri: asset.uri, mimeType: asset.mimeType ?? 'application/octet-stream' });
+    } catch {
+      Alert.alert('Error', 'Could not open file picker. Please try again.');
+    }
   };
 
   // ── Submit contribution ──
@@ -209,10 +279,15 @@ export default function ContributeScreen() {
       if (!token) { navigation.navigate('Signin'); return; }
 
       const form = new FormData();
-      form.append('group_id', String(group_id));
-      form.append('amount', String(payable_amount));
+      form.append('cycle_number', String(cycle_number));
+      form.append('due_date', getDueDate());
       if (note.trim()) form.append('note', note.trim());
-      form.append('proof_attached', 'true');
+      // Append actual file binary so the server can receive it
+      form.append('proof', {
+        uri: proofFile.uri,
+        name: proofFile.name,
+        type: proofFile.mimeType ?? 'application/octet-stream',
+      } as any);
 
       await axios.post(
         `${Constants.expoConfig?.extra?.apiUrl}/user/group/${group_id}/contribute`,
@@ -229,9 +304,10 @@ export default function ContributeScreen() {
       Alert.alert(
         '🎉 Submitted!',
         'Your contribution has been submitted and is under review. You\'ll be notified once it\'s verified.',
-        [{ text: 'Done', onPress: () => navigation.goBack() }],
+        [{ text: 'Done', onPress: () => { loadTransactions(1); navigation.goBack(); } }],
       );
     } catch (err: any) {
+      console.error('Contribution submission error:', err.response ?? err);
       const msg = err?.response?.data?.message ?? 'Submission failed. Please try again.';
       if (err?.response?.status === 401) { navigation.navigate('Signin'); return; }
       Alert.alert('Error', msg);
@@ -389,10 +465,10 @@ export default function ContributeScreen() {
             placeholderTextColor={D.textMuted}
             multiline
             numberOfLines={3}
-            maxLength={300}
+            maxLength={500}
           />
-          {note.length > 200 && (
-            <Text style={styles.noteCounter}>{note.length}/300</Text>
+          {note.length > 400 && (
+            <Text style={styles.noteCounter}>{note.length}/500</Text>
           )}
         </View>
 
@@ -424,8 +500,18 @@ export default function ContributeScreen() {
           ) : (
             <View style={styles.txList}>
               {transactions.map(tx => (
-                <TxRow key={tx.id} tx={tx} groupTitle={group_title} slotLabel={slotLabel} />
+                <TxRow key={tx.id} tx={tx} groupTitle={group_title} />
               ))}
+              {txPage < txLastPage && (
+                <TouchableOpacity
+                  style={styles.loadMoreBtn}
+                  onPress={() => loadTransactions(txPage + 1)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.loadMoreText}>Load more</Text>
+                  <Ionicons name="chevron-down" size={14} color={D.textMuted} />
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </View>
@@ -813,6 +899,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: D.border,
     overflow: 'hidden',
+  },
+  loadMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: D.border,
+  },
+  loadMoreText: {
+    fontSize: 13,
+    color: D.textMuted,
+    fontWeight: '500',
   },
   emptyHistory: {
     alignItems: 'center',
