@@ -66,8 +66,20 @@ const SigninScreen: React.FC = () => {
         setIsAuthenticated(true);
         await setupExpirationTimer();
 
-        // Only show plan picker if the user has no plan assigned yet
-        const hasPlan = !!response.data.user?.plan;
+        // Check plan from dashboard endpoint (login response doesn't include plan)
+        let hasPlan = !!response.data.user?.plan;
+        if (!hasPlan) {
+          try {
+            const dashRes = await axios.get<{ user?: { plan?: string } }>(
+              `${apiUrl}/user/dashboard`,
+              { headers: { Authorization: `Bearer ${response.data.token}`, Accept: 'application/json' } },
+            );
+            hasPlan = !!dashRes.data?.user?.plan;
+          } catch {
+            // If dashboard call fails, default to Dashboard so we don't trap the user
+            hasPlan = true;
+          }
+        }
         const routeName = hasPlan ? 'Dashboard' : 'PlanPicker';
         navigation.reset({ index: 0, routes: [{ name: routeName }] });
       } else {
