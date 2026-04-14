@@ -32,6 +32,9 @@ export default {
     web: {
       favicon: './assets/favicon.png',
     },
+    plugins: [
+      '@react-native-community/datetimepicker',
+    ],
     extra: {
       appName: process.env.APP_NAME || 'Rukuni',
       supportEmail: process.env.SUPPORT_EMAIL || 'support@rukuni.io',
