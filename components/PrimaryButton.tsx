@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   label: {
-    color: D.primary,             // #00246B — dark text on Periwinkle gradient
+    color: '#fff',
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.4,

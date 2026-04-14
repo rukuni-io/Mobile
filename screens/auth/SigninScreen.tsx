@@ -66,11 +66,9 @@ const SigninScreen: React.FC = () => {
         setIsAuthenticated(true);
         await setupExpirationTimer();
 
-        // Show plan picker on the first login of each day
-        const today = new Date().toISOString().split('T')[0];
-        const lastLoginDate = await AsyncStorage.getItem('lastLoginDate');
-        await AsyncStorage.setItem('lastLoginDate', today);
-        const routeName = lastLoginDate !== today ? 'PlanPicker' : 'Dashboard';
+        // Only show plan picker if the user has no plan assigned yet
+        const hasPlan = !!response.data.user?.plan;
+        const routeName = hasPlan ? 'Dashboard' : 'PlanPicker';
         navigation.reset({ index: 0, routes: [{ name: routeName }] });
       } else {
         Dialog.show({ type: ALERT_TYPE.DANGER, title: 'Sign In Error', textBody: 'Invalid response from server', button: 'Close' });
@@ -91,7 +89,9 @@ const SigninScreen: React.FC = () => {
       <LinearGradient colors={['#141414', D.bg]} style={styles.heroBanner}>
         <View style={styles.circle1} />
         <View style={styles.circle2} />
-        <Text style={styles.heroEmoji}>🔐</Text>
+        <View style={styles.emojiRing}>
+          <Text style={styles.heroEmoji}>🔐</Text>
+        </View>
         <Text style={styles.appName}>{Constants.expoConfig?.extra?.appName}</Text>
         <Text style={styles.heroSubtitle}>Sign in to continue</Text>
       </LinearGradient>
@@ -106,7 +106,10 @@ const SigninScreen: React.FC = () => {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.formTitle}>Welcome back 👋</Text>
+          <View style={styles.formTitleRow}>
+            <Text style={styles.formTitle}>Welcome back </Text>
+            <Text style={styles.formTitleEmoji}>👋</Text>
+          </View>
           <Text style={styles.formSubtitle}>Sign in to your account</Text>
 
           <Formik
@@ -154,7 +157,12 @@ const SigninScreen: React.FC = () => {
                 </View>
 
                 <TouchableOpacity style={styles.googleBtn} activeOpacity={0.8}>
-                  <Text style={styles.googleBtnText}>🌐  Continue with Google</Text>
+                  <View style={styles.googleBtnContent}>
+                    <View style={styles.googleGBadge}>
+                      <Text style={styles.googleGText}>G</Text>
+                    </View>
+                    <Text style={styles.googleBtnText}>Continue with Google</Text>
+                  </View>
                 </TouchableOpacity>
 
                 <Text style={styles.signupPrompt}>
@@ -180,10 +188,26 @@ const styles = StyleSheet.create({
     backgroundColor: D.bg,
   },
   heroBanner: {
-    paddingTop: 60,
-    paddingBottom: 36,
+    paddingTop: 56,
+    paddingBottom: 40,
     alignItems: 'center',
     overflow: 'hidden',
+  },
+  emojiRing: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: 'rgba(0,214,143,0.12)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(0,214,143,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    shadowColor: '#00d68f',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.45,
+    shadowRadius: 18,
+    elevation: 8,
   },
   circle1: {
     position: 'absolute',
@@ -204,8 +228,7 @@ const styles = StyleSheet.create({
     left: -30,
   },
   heroEmoji: {
-    fontSize: 52,
-    marginBottom: 8,
+    fontSize: 40,
   },
   appName: {
     fontSize: 28,
@@ -222,24 +245,40 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   card: {
-    backgroundColor: D.surface,
+    backgroundColor: D.surfaceCard,
     marginHorizontal: 20,
     borderRadius: D.radiusLg,
-    padding: 24,
+    padding: 28,
     marginBottom: 30,
     borderWidth: 1,
     borderColor: D.border,
+    borderLeftWidth: 3,
+    borderLeftColor: D.primary,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  formTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   formTitle: {
-    fontSize: 20,
+    fontSize: 26,
     fontWeight: '800',
     color: D.textPrimary,
-    marginBottom: 4,
+    letterSpacing: -0.5,
+  },
+  formTitleEmoji: {
+    fontSize: 26,
   },
   formSubtitle: {
     fontSize: 14,
     color: D.textSecondary,
-    marginBottom: 24,
+    marginBottom: 28,
+    letterSpacing: 0.1,
   },
   forgotRow: {
     alignSelf: 'flex-end',
@@ -267,17 +306,35 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   googleBtn: {
-    height: 50,
+    height: 54,
     borderRadius: D.radius,
     borderWidth: 1.5,
-    borderColor: D.border,
-    backgroundColor: D.surfaceCard,
+    borderColor: D.borderHi,
+    backgroundColor: 'rgba(255,255,255,0.04)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
   },
+  googleBtnContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  googleGBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#4285F4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  googleGText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
   googleBtnText: {
-    color: D.textSecondary,
+    color: D.textPrimary,
     fontSize: 15,
     fontWeight: '600',
   },
