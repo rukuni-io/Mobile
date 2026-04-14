@@ -48,7 +48,7 @@
     "@types/react": "~19.1.10",
     "@types/react-native-vector-icons": "^6.4.18",
     "dotenv": "^17.3.1",
-    "expo": "^54.0.13",
+    "expo": "^55.0.15",
     "typescript": "~5.9.2"
   },
   "private": true
