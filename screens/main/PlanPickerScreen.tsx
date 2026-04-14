@@ -85,7 +85,7 @@ function accentForSlug(slug: string): {
 function mapApiPlanToConfig(plan: ApiPlan): PlanConfig {
     const a = accentForSlug(plan.slug);
     const price =
-        plan.price === 0 ? "Free" : `£${(plan.price / 100).toFixed(2).replace(/\.00$/, "")}`;
+        plan.price === 0 ? "Free" : `£${plan.price}`;
     const period =
         plan.billing === "free_forever" ? "forever" :
         plan.billing === "monthly" ? "per month" :
@@ -267,6 +267,7 @@ const PlanPickerScreen: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [plans, setPlans] = useState<ApiPlan[]>([]);
     const [plansLoading, setPlansLoading] = useState(true);
+    const [plansError, setPlansError] = useState<string | null>(null);
     const [starterSlug, setStarterSlug] = useState<string | null>(null);
     const [activePlanName, setActivePlanName] = useState<string | null>(null);
 
@@ -276,58 +277,70 @@ const PlanPickerScreen: React.FC = () => {
         ? plans.filter((p) => p.name.toLowerCase() !== activePlanName.toLowerCase())
         : plans;
 
-    useEffect(() => {
-        let cancelled = false;
-        (async () => {
-            try {
-                const [cachedDashboard, token, apiUrl] = await Promise.all([
-                    AsyncStorage.getItem("cache_dashboard_data"),
-                    AsyncStorage.getItem("token"),
-                    Promise.resolve(Constants.expoConfig?.extra?.apiUrl),
-                ]);
+    const fetchPlans = async (isCancelled: () => boolean) => {
+        setPlansError(null);
+        setPlansLoading(true);
+        try {
+            const apiUrl: string = Constants.expoConfig?.extra?.apiUrl;
+            const [cachedDashboard, token] = await Promise.all([
+                AsyncStorage.getItem("cache_dashboard_data"),
+                AsyncStorage.getItem("token"),
+            ]);
 
-                // Try reading active plan from dashboard cache first
-                if (cachedDashboard) {
+            if (!apiUrl) throw new Error("API URL not configured");
+
+            // Try reading active plan from dashboard cache first
+            if (cachedDashboard) {
+                try {
                     const { plan } = JSON.parse(cachedDashboard);
-                    console.log("cached plan:", plan);
-                    if (plan && plan !== "No active plan" && !cancelled) {
+                    if (plan && plan !== "No active plan" && !isCancelled()) {
                         setActivePlanName(plan);
                     }
-                }
+                } catch { /* ignore bad cache */ }
+            }
 
-                // Fetch plans list
-                const res = await axios.get<{ data: ApiPlan[] }>(`${apiUrl}/plans`, {
-                    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-                });
+            // Fetch plans list — public endpoint
+            const res = await axios.get<{ data: ApiPlan[] }>(`${apiUrl}/plans`, {
+                headers: {
+                    Accept: "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+            });
 
-                // Also fetch dashboard to get the freshest active plan name
-                try {
-                    const dashRes = await axios.get<{ user?: { plan?: string } }>(
-                        `${apiUrl}/user/dashboard`,
-                        { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
-                    );
-                    const freshPlan = dashRes.data?.user?.plan;
-                    console.log("fresh plan from dashboard:", freshPlan);
-                    if (!cancelled && freshPlan && freshPlan !== "No active plan") {
-                        setActivePlanName(freshPlan);
-                    } else if (!cancelled) {
-                        setActivePlanName(null);
-                    }
-                } catch {
-                    // fall back to cache value already set above
-                }
+            if (!res.data?.data) throw new Error("Unexpected response from /plans");
 
-                if (!cancelled) {
-                    setPlans(res.data.data);
-                    const free = res.data.data.find((p) => p.price === 0);
-                    setStarterSlug(free?.slug ?? null);
+            // Fetch dashboard for the freshest active plan name
+            try {
+                const dashRes = await axios.get<{ user?: { plan?: string } }>(
+                    `${apiUrl}/user/dashboard`,
+                    { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+                );
+                const freshPlan = dashRes.data?.user?.plan;
+                if (!isCancelled()) {
+                    setActivePlanName(freshPlan && freshPlan !== "No active plan" ? freshPlan : null);
                 }
             } catch {
-                // silently fail — user can still skip
-            } finally {
-                if (!cancelled) setPlansLoading(false);
+                // fall back to cache value already set above
             }
-        })();
+
+            if (!isCancelled()) {
+                setPlans(res.data.data);
+                const free = res.data.data.find((p) => p.price === 0);
+                setStarterSlug(free?.slug ?? null);
+            }
+        } catch (err: any) {
+            if (!isCancelled()) {
+                const msg = err?.response?.data?.message || err?.message || "Failed to load plans";
+                setPlansError(msg);
+            }
+        } finally {
+            if (!isCancelled()) setPlansLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        let cancelled = false;
+        fetchPlans(() => cancelled);
         return () => { cancelled = true; };
     }, []);
 
@@ -481,9 +494,21 @@ const PlanPickerScreen: React.FC = () => {
                         size="large"
                         style={{ marginTop: 32 }}
                     />
+                ) : plansError ? (
+                    <View style={{ alignItems: "center", marginTop: 32, paddingHorizontal: 16 }}>
+                        <Text style={{ color: P.textMuted, textAlign: "center", marginBottom: 16 }}>
+                            {plansError}
+                        </Text>
+                        <TouchableOpacity
+                            onPress={() => { let c = false; fetchPlans(() => c); }}
+                            style={{ paddingVertical: 10, paddingHorizontal: 24, borderRadius: 12, backgroundColor: P.accentSoft, borderWidth: 1, borderColor: P.accentMed }}
+                        >
+                            <Text style={{ color: P.accent, fontWeight: "600" }}>Retry</Text>
+                        </TouchableOpacity>
+                    </View>
                 ) : visiblePlans.length === 0 ? (
                     <Text style={{ color: P.textMuted, textAlign: "center", marginTop: 32 }}>
-                        You already have all available plans active.
+                        No plans available right now.
                     </Text>
                 ) : (
                     visiblePlans.map((p) => (
