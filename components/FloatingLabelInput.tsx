@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -48,6 +48,15 @@ export default function FloatingLabelInput({
       Animated.spring(anim, { toValue: 0, useNativeDriver: false, speed: 20 }).start();
     }
   };
+
+  // Float label up whenever value is set externally (e.g. autofill)
+  useEffect(() => {
+    if (value) {
+      floatUp();
+    } else if (!focused) {
+      Animated.spring(anim, { toValue: 0, useNativeDriver: false, speed: 20 }).start();
+    }
+  }, [value]);
 
   const labelTop = anim.interpolate({ inputRange: [0, 1], outputRange: [16, -8] });
   const labelSize = anim.interpolate({ inputRange: [0, 1], outputRange: [15, 12] });
