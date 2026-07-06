@@ -2,6 +2,7 @@
 export { default as SigninScreen } from './auth/SigninScreen';
 export { default as SignupScreen } from './auth/SignupScreen';
 export { default as ForgotPasswordScreen } from './auth/ForgotPasswordScreen';
+export { default as EmailVerificationScreen } from './auth/EmailVerificationScreen';
 
 // Onboarding Screens
 export { default as SplashScreen } from './onboarding/SplashScreen';

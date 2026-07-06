@@ -31,6 +31,7 @@ type RootStackParamList = {
   Signup: undefined;
   Dashboard: undefined;
   ForgotPassword: undefined;
+  EmailVerification: { email: string };
   PlanPicker: undefined;
 };
 
@@ -94,7 +95,25 @@ const SigninScreen: React.FC = () => {
       const errorMessage = error.isAxiosError
         ? error.response?.data?.message || error.response?.data?.error || 'Invalid credentials'
         : error.message || 'Network error. Please check your connection.';
-      Dialog.show({ type: ALERT_TYPE.DANGER, title: 'Sign In Error', textBody: errorMessage, button: 'Close' });
+      
+      // Check if error is related to email not being verified
+      const isEmailNotVerified = 
+        errorMessage?.toLowerCase().includes('email') && 
+        errorMessage?.toLowerCase().includes('verif');
+      
+      if (isEmailNotVerified) {
+        Dialog.show({
+          type: ALERT_TYPE.WARNING,
+          title: 'Email Not Verified',
+          textBody: 'Please verify your email before signing in.',
+          button: 'Verify',
+          onHide: () => {
+            navigation.navigate('EmailVerification', { email: values.email });
+          },
+        });
+      } else {
+        Dialog.show({ type: ALERT_TYPE.DANGER, title: 'Sign In Error', textBody: errorMessage, button: 'Close' });
+      }
     }
   };
 

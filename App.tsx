@@ -14,6 +14,7 @@ import SessionExpiryModal from './components/SessionExpiryModal';
 import SigninScreen from './screens/auth/SigninScreen';
 import SignupScreen from './screens/auth/SignupScreen';
 import ForgotPasswordScreen from './screens/auth/ForgotPasswordScreen';
+import EmailVerificationScreen from './screens/auth/EmailVerificationScreen';
 
 // Onboarding Screens
 import SplashScreen from './screens/onboarding/SplashScreen';
@@ -48,6 +49,7 @@ type RootStackParamList = {
   Signin: undefined;
   Signup: undefined;
   ForgotPassword: undefined;
+  EmailVerification: { email: string };
   Dashboard: undefined;
   PlanPicker:   undefined;
   EarnPoints:   undefined;
@@ -154,6 +156,7 @@ const AppContent: React.FC = () => {
             <Stack.Screen name="Splash" component={SplashScreen} />
             <Stack.Screen name="Onboarding" component={OnboardingScreen} />
             <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+            <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
             <Stack.Screen name="Signin" component={SigninScreen} />
             <Stack.Screen name="Signup" component={SignupScreen} />
             <Stack.Screen
