@@ -159,7 +159,7 @@ const CATEGORIES_FALLBACK: Category[] = [
     desc: 'Password, 2FA, login issues',
     articles: [
       { q: 'How do I reset my password?', a: "Tap 'Forgot password?' on the sign-in screen. Enter your registered email and we'll send a 6-digit reset code. Enter the code and choose a new password. The code expires in 24 hours." },
-      { q: 'How do I verify my email?', a: "After signing up, check your inbox for a verification email. Click the link or enter the 6-digit code. If not received, tap 'Resend code' on the verification screen." },
+      { q: 'How do I verify my email?', a: "After signing up, check your inbox for a verification email and tap 'Verify Email Address'. The link expires in 60 minutes. If you don't see it, check spam or tap 'Resend Verification Email' on the verification screen." },
       { q: 'How do I enable Two-Factor Authentication?', a: 'Go to Profile → Settings → Security → Two-Factor Auth. Link your mobile number or authenticator app. 2FA is strongly recommended for protecting your savings.' },
       { q: 'I see a suspicious login — what do I do?', a: `Immediately change your password via Profile → Security. Then contact ${SUPPORT_EMAIL} flagged 'Urgent – Security'. We'll investigate and freeze the account if needed.` },
       { q: 'How do I change my email or phone number?', a: 'Go to Profile → Edit Profile. Update your email or mobile. A verification code will confirm the change before it takes effect.' },

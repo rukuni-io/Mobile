@@ -46,7 +46,7 @@ import EarnPointsScreen from './screens/main/EarnPointsScreen';
 type RootStackParamList = {
   Splash: undefined;
   Onboarding: undefined;
-  Signin: undefined;
+  Signin: { email?: string } | undefined;
   Signup: undefined;
   ForgotPassword: undefined;
   EmailVerification: { email: string };
@@ -142,13 +142,12 @@ const AppContent: React.FC = () => {
 
   return (
     <>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <StatusBar barStyle="light-content" />
-        <NavigationContainer
-          ref={navigationRef}
-          onReady={onNavigationReady}
-          onStateChange={onNavigationStateChange}
-        >
+      <StatusBar barStyle="light-content" />
+      <NavigationContainer
+        ref={navigationRef}
+        onReady={onNavigationReady}
+        onStateChange={onNavigationStateChange}
+      >
           <Stack.Navigator
             screenOptions={{ headerShown: false }}
             initialRouteName={isAuthenticated ? "Dashboard" : "Splash"}
@@ -231,7 +230,6 @@ const AppContent: React.FC = () => {
           </Stack.Navigator>
         </NavigationContainer>
         <Toast config={toastConfig} />
-      </GestureHandlerRootView>
 
       {/* Session Expiry Modal */}
       <SessionExpiryModal
@@ -248,12 +246,14 @@ const AppContent: React.FC = () => {
 
 export default function App() {
   return (
-    <AlertNotificationRoot theme="dark">
-      <SafeAreaProvider>
-        <AuthProvider>
-          <AppContent />
-        </AuthProvider>
-      </SafeAreaProvider>
-    </AlertNotificationRoot>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AlertNotificationRoot theme="dark">
+        <SafeAreaProvider>
+          <AuthProvider>
+            <AppContent />
+          </AuthProvider>
+        </SafeAreaProvider>
+      </AlertNotificationRoot>
+    </GestureHandlerRootView>
   );
 }

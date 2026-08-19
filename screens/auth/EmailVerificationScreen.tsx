@@ -4,8 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StatusBar,
   Image,
@@ -18,9 +16,7 @@ import axios from 'axios';
 import Constants from 'expo-constants';
 import { ALERT_TYPE, Dialog } from 'react-native-alert-notification';
 import { Ionicons } from '@expo/vector-icons';
-import { D } from '../../theme/tokens';
 import PrimaryButton from '../../components/PrimaryButton';
-import OTPInput from '../../components/OTPInput';
 
 type RootStackParamList = {
   EmailVerification: { email: string };
@@ -33,9 +29,6 @@ export default function EmailVerificationScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<EmailVerificationRouteProp>();
 
-  const [otp, setOtp] = useState('');
-  const [otpError, setOtpError] = useState('');
-  const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(0);
 
@@ -43,56 +36,26 @@ export default function EmailVerificationScreen() {
   const apiUrl = Constants.expoConfig?.extra?.apiUrl as string | undefined;
 
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: ReturnType<typeof setTimeout>;
     if (resendCountdown > 0) {
       timer = setTimeout(() => setResendCountdown(resendCountdown - 1), 1000);
     }
     return () => clearTimeout(timer);
   }, [resendCountdown]);
 
-  // ── Verify OTP ──
-  const handleVerifyOtp = async () => {
-    if (otp.length < 6) {
-      setOtpError('Please enter the complete 6-digit code.');
-      return;
-    }
-    setOtpError('');
-    setLoading(true);
-    try {
-      await axios.post(`${apiUrl}/auth/verify-otp`, { email, otp });
-      Dialog.show({
-        type: ALERT_TYPE.SUCCESS,
-        title: 'Success',
-        textBody: 'Email verified successfully!',
-        button: 'OK',
-        onHide: () => {
-          navigation.navigate('Signin');
-        },
-      });
-    } catch (err: any) {
-      const msg = err.response?.data?.message || 'Invalid or expired code.';
-      setOtpError(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ── Resend Verification Code ──
-  const handleResendCode = async () => {
+  const handleResendEmail = async () => {
     setResendLoading(true);
     try {
       await axios.post(`${apiUrl}/auth/resend-verification`, { email });
       Dialog.show({
         type: ALERT_TYPE.SUCCESS,
-        title: 'Success',
-        textBody: 'Verification code sent to your email.',
+        title: 'Email Sent',
+        textBody: 'A new verification link has been sent to your email. It expires in 60 minutes.',
         button: 'OK',
       });
-      setResendCountdown(60); // 60 second cooldown
-      setOtp('');
-      setOtpError('');
+      setResendCountdown(60);
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Unable to resend code. Please try again.';
+      const msg = err.response?.data?.message || 'Unable to resend the verification email. Please try again.';
       Dialog.show({ type: ALERT_TYPE.DANGER, title: 'Error', textBody: msg, button: 'OK' });
     } finally {
       setResendLoading(false);
@@ -100,84 +63,56 @@ export default function EmailVerificationScreen() {
   };
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <StatusBar barStyle="light-content" backgroundColor="#003f5c" />
-        <LinearGradient colors={['#003f5c', '#1c3c5c']} style={styles.container}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={{ flex: 1 }}
+    <View style={{ flex: 1 }}>
+      <StatusBar barStyle="light-content" backgroundColor="#003f5c" />
+      <LinearGradient colors={['#003f5c', '#1c3c5c']} style={styles.container}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <View style={styles.logoContainer}>
+            <Image
+              source={require('../../assets/logos/RUKUNI-LOGO-mobile-18.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
+
+          <Text style={styles.mailIcon}>✉️</Text>
+          <Text style={styles.title}>Check Your Email</Text>
+          <Text style={styles.subtitle}>
+            We've sent a verification link to{'\n'}
+            <Text style={styles.email}>{email}</Text>
+          </Text>
+          <Text style={styles.instructions}>
+            Open the email and tap <Text style={styles.email}>Verify Email Address</Text> to finish setting up your account. The link expires in 60 minutes — check your spam folder if you don't see it.
+          </Text>
+
+          <PrimaryButton
+            label={
+              resendCountdown > 0
+                ? `Resend in ${resendCountdown}s`
+                : 'Resend Verification Email'
+            }
+            onPress={handleResendEmail}
+            loading={resendLoading}
+            disabled={resendLoading || resendCountdown > 0}
+            style={styles.button}
+          />
+
+          <TouchableOpacity
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+                return;
+              }
+              navigation.navigate('Signin', email ? { email } : undefined);
+            }}
+            style={styles.backButton}
           >
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-              {/* Logo */}
-              <View style={styles.logoContainer}>
-                <Image
-                  source={require('../../assets/logos/RUKUNI-LOGO-mobile-18.png')}
-                  style={styles.logo}
-                  resizeMode="contain"
-                />
-              </View>
-
-              {/* Title */}
-              <Text style={styles.title}>Verify Your Email</Text>
-              <Text style={styles.subtitle}>
-                We've sent a 6-digit code to{'\n'}
-                <Text style={styles.email}>{email}</Text>
-              </Text>
-
-              {/* OTP Input */}
-              <View style={styles.otpContainer}>
-                <OTPInput value={otp} onChangeText={setOtp} editable={!loading} />
-                {otpError ? <Text style={styles.errorText}>{otpError}</Text> : null}
-              </View>
-
-              {/* Verify Button */}
-              <PrimaryButton
-                title={loading ? 'Verifying...' : 'Verify'}
-                onPress={handleVerifyOtp}
-                disabled={loading || otp.length < 6}
-                style={styles.button}
-              />
-
-              {/* Resend Code Section */}
-              <View style={styles.resendContainer}>
-                <Text style={styles.resendText}>Didn't receive the code?</Text>
-                <TouchableOpacity
-                  onPress={handleResendCode}
-                  disabled={resendLoading || resendCountdown > 0}
-                  style={[
-                    styles.resendButton,
-                    (resendLoading || resendCountdown > 0) && styles.resendButtonDisabled,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.resendButtonText,
-                      (resendLoading || resendCountdown > 0) && styles.resendButtonTextDisabled,
-                    ]}
-                  >
-                    {resendCountdown > 0
-                      ? `Resend in ${resendCountdown}s`
-                      : resendLoading
-                      ? 'Sending...'
-                      : 'Resend Code'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Back to Sign In */}
-              <TouchableOpacity
-                onPress={() => navigation.navigate('Signin')}
-                style={styles.backButton}
-              >
-                <Ionicons name="arrow-back" size={20} color="#fff" />
-                <Text style={styles.backButtonText}>Back to Sign In</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </LinearGradient>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+            <Ionicons name="arrow-back" size={20} color="#fff" />
+            <Text style={styles.backButtonText}>Back to Sign In</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </LinearGradient>
+    </View>
   );
 }
 
@@ -193,11 +128,16 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
   },
   logo: {
     width: 80,
     height: 80,
+  },
+  mailIcon: {
+    fontSize: 40,
+    textAlign: 'center',
+    marginBottom: 12,
   },
   title: {
     fontSize: 24,
@@ -209,7 +149,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     color: '#a3c9e3',
-    marginBottom: 24,
+    marginBottom: 16,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -217,51 +157,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
-  otpContainer: {
-    marginVertical: 24,
-  },
-  errorText: {
-    color: '#ff6b6b',
-    fontSize: 12,
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  button: {
-    marginTop: 24,
-    marginBottom: 16,
-  },
-  resendContainer: {
-    alignItems: 'center',
-    marginVertical: 24,
-  },
-  resendText: {
-    color: '#a3c9e3',
+  instructions: {
     fontSize: 14,
+    color: '#a3c9e3',
+    textAlign: 'center',
+    lineHeight: 22,
     marginBottom: 8,
   },
-  resendButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#2a90c7',
-  },
-  resendButtonDisabled: {
-    borderColor: '#666',
-  },
-  resendButtonText: {
-    color: '#2a90c7',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  resendButtonTextDisabled: {
-    color: '#666',
+  button: {
+    marginTop: 28,
+    marginBottom: 8,
   },
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 32,
+    marginTop: 24,
     paddingVertical: 16,
   },
   backButtonText: {

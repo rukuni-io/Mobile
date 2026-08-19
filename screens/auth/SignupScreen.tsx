@@ -23,7 +23,7 @@ import FloatingLabelInput from '../../components/FloatingLabelInput';
 import StepDots from '../../components/StepDots';
 
 type RootStackParamList = {
-  Signin: undefined;
+  Signin: { email?: string } | undefined;
   Signup: undefined;
 };
 
@@ -422,7 +422,7 @@ function SignupScreen() {
                 onPress={handleResendVerification}
                 loading={resendLoading}
               />
-              <TouchableOpacity onPress={() => navigation.navigate('Signin')} style={styles.goToSigninBtn}>
+              <TouchableOpacity onPress={() => navigation.navigate('Signin', { email: formData.email })} style={styles.goToSigninBtn}>
                 <Text style={styles.goToSigninText}>Go to Sign In</Text>
               </TouchableOpacity>
             </>

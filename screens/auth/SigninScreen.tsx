@@ -13,8 +13,9 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RouteProp } from '@react-navigation/native';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { ALERT_TYPE, Dialog } from 'react-native-alert-notification';
@@ -27,7 +28,7 @@ import { registerPushToken } from '../../utils/registerPushToken';
 
 
 type RootStackParamList = {
-  Signin: undefined;
+  Signin: { email?: string } | undefined;
   Signup: undefined;
   Dashboard: undefined;
   ForgotPassword: undefined;
@@ -42,9 +43,10 @@ const validationSchema = Yup.object({
 
 const SigninScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute<RouteProp<RootStackParamList, 'Signin'>>();
   const { setIsAuthenticated, setupExpirationTimer } = useAuth();
   const initialValues = {
-    email: '',
+    email: route.params?.email ?? '',
     password: '',
   };
 
@@ -150,6 +152,7 @@ const SigninScreen: React.FC = () => {
 
           <Formik
             initialValues={initialValues}
+            enableReinitialize
             validationSchema={validationSchema}
             onSubmit={handleFormSubmit}
           >
