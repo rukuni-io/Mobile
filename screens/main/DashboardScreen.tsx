@@ -82,7 +82,6 @@ interface GroupContribution {
 }
 
 interface DashboardResponse {
-    suggested_groups?: Group[];
     user_groups?: Group[];
     stats?: DashboardStats;
     user?: User;
@@ -98,8 +97,6 @@ interface StatCardConfig {
     sparkData: number[];
     trendUp: boolean;
 }
-
-type TabType = "topGroups" | "myGroup";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -478,36 +475,6 @@ const NoPlanBanner: React.FC<{ onPress: () => void }> = ({ onPress }) => (
     </TouchableOpacity>
 );
 
-const TabHeader: React.FC<{
-    activeTab: TabType;
-    onTabChange: (tab: TabType) => void;
-}> = ({ activeTab, onTabChange }) => {
-    const tabs: { key: TabType; label: string }[] = [
-        { key: "topGroups", label: "Explore" },
-        { key: "myGroup", label: "A Member" },
-    ];
-
-    return (
-        <View style={styles.tabHeadersContainer}>
-            {tabs.map(({ key, label }) => (
-                <TouchableOpacity
-                    key={key}
-                    style={styles.tabButton}
-                    onPress={() => onTabChange(key)}
-                    activeOpacity={0.7}
-                >
-                    <Text
-                        style={[styles.tabText, activeTab === key && styles.activeTabText]}
-                    >
-                        {label}
-                    </Text>
-                    {activeTab === key && <View style={styles.tabUnderline} />}
-                </TouchableOpacity>
-            ))}
-        </View>
-    );
-};
-
 const STATUS_COLORS: Record<string, string> = {
     verified: '#00d68f',
     pending:  '#f59e0b',
@@ -646,7 +613,6 @@ const useDashboardData = (
     navigation: NativeStackNavigationProp<RootStackParamList>,
 ) => {
     const [user, setUser] = useState<User | null>(null);
-    const [topGroups, setTopGroups] = useState<Group[]>([]);
     const [myGroups, setMyGroups] = useState<Group[]>([]);
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [groupContributions, setGroupContributions] = useState<GroupContribution[]>([]);
@@ -670,8 +636,7 @@ const useDashboardData = (
                 if (userData) setUser(JSON.parse(userData));
                 
                 if (cachedData) {
-                    const { topGroups: cached_topGroups, myGroups: cached_myGroups, stats: cached_stats, plan: cached_plan, group_contributions: cached_contributions } = JSON.parse(cachedData);
-                    setTopGroups(cached_topGroups || []);
+                    const { myGroups: cached_myGroups, stats: cached_stats, plan: cached_plan, group_contributions: cached_contributions } = JSON.parse(cachedData);
                     setMyGroups(cached_myGroups || []);
                     setStats(cached_stats || null);
                     setGroupContributions(cached_contributions || []);
@@ -708,7 +673,7 @@ const useDashboardData = (
                 isFetchingRef.current = true;
                 if (isRefresh) setRefreshing(true);
                 // Only show loading if we have no data yet
-                else if (topGroups.length === 0 && myGroups.length === 0) setLoading(true);
+                else if (myGroups.length === 0) setLoading(true);
 
                 const token = await AsyncStorage.getItem("token");
                 if (!token) {
@@ -732,7 +697,6 @@ const useDashboardData = (
                 );
 
                 const {
-                    suggested_groups = [],
                     user_groups = [],
                     stats: dashboardStats = {},
                     user: apiUser = null,
@@ -741,7 +705,6 @@ const useDashboardData = (
 
                 const planName: string = apiUser?.plan ?? 'No active plan';
 
-                setTopGroups(suggested_groups);
                 setMyGroups(user_groups);
                 setStats(dashboardStats);
                 setGroupContributions(group_contributions);
@@ -766,7 +729,7 @@ const useDashboardData = (
                 // Cache the data for instant loading next time
                 await AsyncStorage.setItem(
                     CACHE_KEYS.DASHBOARD_DATA,
-                    JSON.stringify({ topGroups: suggested_groups, myGroups: user_groups, stats: dashboardStats, plan: planName, group_contributions })
+                    JSON.stringify({ myGroups: user_groups, stats: dashboardStats, plan: planName, group_contributions })
                 );
             } catch (error: any) {
                 if (error.response?.status === 401) {
@@ -779,7 +742,7 @@ const useDashboardData = (
                 isFetchingRef.current = false;
             }
         },
-        [navigation, topGroups.length, myGroups.length],
+        [navigation, myGroups.length],
     );
 
     const signOut = useCallback(async () => {
@@ -805,7 +768,6 @@ const useDashboardData = (
 
     return {
         user,
-        topGroups,
         myGroups,
         stats,
         groupContributions,
@@ -825,11 +787,9 @@ const DashboardScreen: React.FC = () => {
     const navigation =
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const actionSheetRef = useRef<ActionSheetRef>(null);
-    const [activeTab, setActiveTab] = useState<TabType>("topGroups");
 
     const {
         user,
-        topGroups,
         myGroups,
         stats,
         groupContributions,
@@ -865,16 +825,6 @@ const DashboardScreen: React.FC = () => {
     const handleCreateGroup = useCallback(() => {
         navigation.navigate("CreateGroup");
     }, [navigation]);
-
-    const exploreGroupCards = useMemo(() =>
-        topGroups.map((group) => (
-            <GroupCard
-                key={group.id}
-                group={group}
-                onPress={() => handleGroupPress(group.id, group.user_role, group.is_active)}
-            />
-        ))
-    , [topGroups, handleGroupPress]);
 
     const renderMyGroups = useMemo(
         () => (
@@ -958,12 +908,10 @@ const DashboardScreen: React.FC = () => {
                     <Text style={[styles.sectionTitle, styles.boldText]}>Groups</Text>
 
                     <View style={styles.groupsContainer}>
-                        <TabHeader activeTab={activeTab} onTabChange={setActiveTab} />
-
-                        {activeTab === "topGroups" && topGroups.length === 0 ? (
+                        {myGroups.length === 0 ? (
                             <EmptyState
-                                message="No groups found"
-                                subtitle="There are no public groups available right now. Create one and invite others to join!"
+                                message="No groups yet"
+                                subtitle="Create a group and invite others to start saving together."
                                 iconName="people-outline"
                                 actionLabel="Create a Group"
                                 onAction={handleCreateGroup}
@@ -974,7 +922,7 @@ const DashboardScreen: React.FC = () => {
                                 showsHorizontalScrollIndicator={false}
                                 style={styles.horizontalScroll}
                             >
-                                {activeTab === "topGroups" ? exploreGroupCards : renderMyGroups}
+                                {renderMyGroups}
                             </ScrollView>
                         )}
                     </View>
@@ -1161,37 +1109,6 @@ const styles = StyleSheet.create({
     sparkBar: {
         flex: 1,
         borderRadius: 2,
-    },
-
-    // Tabs
-    tabHeadersContainer: {
-        flexDirection: "row",
-        marginHorizontal: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: semanticColors.borderLight,
-    },
-    tabButton: {
-        paddingVertical: 12,
-        marginHorizontal: 5,
-        paddingBottom: 16,
-        position: "relative",
-    },
-    tabText: {
-        color: semanticColors.textSecondary,
-        fontWeight: "600",
-        fontSize: 13,
-    },
-    activeTabText: {
-        color: semanticColors.buttonPrimary,
-    },
-    tabUnderline: {
-        position: "absolute",
-        bottom: -1,
-        left: 5,
-        right: 5,
-        height: 2,
-        backgroundColor: semanticColors.buttonPrimary,
-        borderRadius: 1,
     },
 
     // Groups
