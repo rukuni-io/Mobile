@@ -8,6 +8,7 @@ export default {
     orientation: 'portrait',
     icon: './assets/icon.png',
     userInterfaceStyle: 'light',
+    scheme: 'rukuni',
     newArchEnabled: true,
     splash: {
       image: './assets/splash-icon.png',
@@ -33,6 +34,7 @@ export default {
       favicon: './assets/favicon.png',
     },
     plugins: [
+      'expo-font',
       [
         'expo-notifications',
         {

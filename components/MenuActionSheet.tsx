@@ -5,6 +5,7 @@ import ActionSheet, { ActionSheetRef } from 'react-native-actions-sheet';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { D } from '../theme/tokens';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -70,6 +71,7 @@ const MenuActionSheet: React.FC<MenuActionSheetProps> = ({
   userName,
 }) => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
+  const insets = useSafeAreaInsets();
 
   const go = (screen: string) => {
     actionSheetRef.current?.hide();
@@ -86,8 +88,9 @@ const MenuActionSheet: React.FC<MenuActionSheetProps> = ({
       gestureEnabled
       containerStyle={styles.sheet}
       indicatorStyle={styles.indicator}
+      safeAreaInsets={insets}
     >
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 28) }]}>
 
         {/* ── Profile pill ── */}
         <View style={styles.profileRow}>

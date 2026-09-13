@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
     View,
     Text,
@@ -8,15 +8,33 @@ import {
     StatusBar,
     ActivityIndicator,
     Platform,
+    Modal,
+    AppState,
+    AppStateStatus,
+    Linking,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import Constants from "expo-constants";
+import { ALERT_TYPE, Dialog } from "react-native-alert-notification";
 import { D } from "../../theme/tokens";
+import {
+    getBillingRedirectUrls,
+    extractCheckoutUrl,
+    extractSessionId,
+    extractApiError,
+    openStripeCheckout,
+    saveCheckoutSession,
+    loadCheckoutSession,
+    loadCheckoutPlanSlug,
+    clearCheckoutSession,
+    verifyCheckoutSession,
+} from "../../utils/billingCheckout";
 
 // ── Dark theme tokens ──────────────────────────────────────────────────────────
 const P = {
@@ -95,16 +113,16 @@ function mapApiPlanToConfig(plan: ApiPlan): PlanConfig {
         plan.billing === "yearly" ? "Billed annually" : "Cancel any time";
     const label =
         plan.price === 0 ? "Get started for free" :
-        plan.slug === "growth" ? "Start Growth plan" : "Get Enterprise access";
+        "Continue to secure checkout";
     const confirmTitle =
         plan.slug === "starter" ? "Starter activated" :
-        plan.slug === "growth" ? "Growth plan activated" : "Enterprise confirmed";
+        plan.slug === "growth" ? "You're on Growth" : "Enterprise is live";
     const confirmBody =
         plan.slug === "starter"
             ? "You're on the free Starter plan. Create your first group and start saving together."
             : plan.slug === "growth"
-            ? "Unlimited groups, smart reminders and the full analytics dashboard are now available."
-            : "Your account manager will reach out within 24 hours to complete your onboarding.";
+            ? "Payment received. Unlimited groups, smart reminders and the full analytics dashboard are unlocked."
+            : "Payment received. Your account manager will reach out within 24 hours to complete onboarding.";
     return {
         name: plan.name,
         tagline: plan.tagline,
@@ -253,7 +271,10 @@ const PlanCard: React.FC<{
 type RootStackParamList = {
     Dashboard: undefined;
     PlanPicker: undefined;
+    CreateGroup: undefined;
 };
+
+type CheckoutPhase = "idle" | "preparing" | "success";
 
 // ── Main Screen ────────────────────────────────────────────────────────────────
 
@@ -263,13 +284,19 @@ const PlanPickerScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
 
     const [selected, setSelected] = useState<string | null>(null);
-    const [confirmed, setConfirmed] = useState(false);
+    const [checkoutPhase, setCheckoutPhase] = useState<CheckoutPhase>("idle");
+    const [cancelled, setCancelled] = useState(false);
     const [loading, setLoading] = useState(false);
     const [plans, setPlans] = useState<ApiPlan[]>([]);
     const [plansLoading, setPlansLoading] = useState(true);
     const [plansError, setPlansError] = useState<string | null>(null);
     const [starterSlug, setStarterSlug] = useState<string | null>(null);
     const [activePlanName, setActivePlanName] = useState<string | null>(null);
+    const pendingSessionId = useRef<string | null>(null);
+    const checkoutOpenedAt = useRef(0);
+    const settlingRef = useRef(false);
+    const appStateRef = useRef(AppState.currentState);
+    const settleCheckoutRef = useRef<() => Promise<void>>(async () => {});
 
     const selectedPlan = selected ? plans.find((p) => p.slug === selected) : undefined;
     const activePlan = selectedPlan ? mapApiPlanToConfig(selectedPlan) : null;
@@ -338,21 +365,176 @@ const PlanPickerScreen: React.FC = () => {
         }
     };
 
-    useEffect(() => {
-        let cancelled = false;
-        fetchPlans(() => cancelled);
-        return () => { cancelled = true; };
-    }, []);
+    const confirmPlanFromDashboard = async () => {
+        const apiUrl = Constants.expoConfig?.extra?.apiUrl;
+        const token = await AsyncStorage.getItem("token");
+        if (!apiUrl || !token) return false;
+        const dashRes = await axios.get<{ user?: { plan?: string } }>(
+            `${apiUrl}/user/dashboard`,
+            { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+        );
+        const freshPlan = dashRes.data?.user?.plan;
+        if (!freshPlan || freshPlan === "No active plan") return false;
+        setActivePlanName(freshPlan);
+        return true;
+    };
 
-    const handleConfirm = async () => {
-        if (!selected || !selectedPlan) return;
-        setLoading(true);
+    const settleCheckout = useCallback(async () => {
+        const sessionId = pendingSessionId.current || (await loadCheckoutSession());
+        if (!sessionId || settlingRef.current) return;
+        settlingRef.current = true;
+        setCheckoutPhase("preparing");
+
         try {
             const apiUrl = Constants.expoConfig?.extra?.apiUrl;
             const token = await AsyncStorage.getItem("token");
+
+            let paymentStatus: "paid" | "unpaid" | "no_payment_required" | "unknown" = "unknown";
+            if (apiUrl && token) {
+                for (let i = 0; i < 4; i += 1) {
+                    try {
+                        paymentStatus = await verifyCheckoutSession(apiUrl, token, sessionId);
+                    } catch {
+                        paymentStatus = "unknown";
+                    }
+                    if (paymentStatus === "paid" || paymentStatus === "no_payment_required") break;
+                    if (i < 3) await new Promise((r) => setTimeout(r, 1000));
+                }
+            }
+
+            const paid = paymentStatus === "paid" || paymentStatus === "no_payment_required";
+
+            if (!paid && paymentStatus === "unknown") {
+                let activated = false;
+                for (let i = 0; i < 3; i += 1) {
+                    try {
+                        activated = await confirmPlanFromDashboard();
+                    } catch {
+                        /* ignore */
+                    }
+                    if (activated) break;
+                    await new Promise((r) => setTimeout(r, 800));
+                }
+                if (activated) {
+                    pendingSessionId.current = null;
+                    await clearCheckoutSession();
+                    await AsyncStorage.removeItem("cache_dashboard_data");
+                    setCancelled(false);
+                    setCheckoutPhase("success");
+                    return;
+                }
+            }
+
+            if (paid) {
+                for (let i = 0; i < 3; i += 1) {
+                    try {
+                        if (await confirmPlanFromDashboard()) break;
+                    } catch {
+                        /* webhook may still be attaching the plan */
+                    }
+                    await new Promise((r) => setTimeout(r, 800));
+                }
+                pendingSessionId.current = null;
+                await clearCheckoutSession();
+                await AsyncStorage.removeItem("cache_dashboard_data");
+                setCancelled(false);
+                setCheckoutPhase("success");
+                return;
+            }
+
+            pendingSessionId.current = sessionId;
+            await AsyncStorage.removeItem("cache_dashboard_data");
+            setCancelled(true);
+            setCheckoutPhase("idle");
+        } finally {
+            settlingRef.current = false;
+        }
+    }, []);
+
+    settleCheckoutRef.current = settleCheckout;
+
+    useEffect(() => {
+        let cancelled = false;
+        fetchPlans(() => cancelled);
+
+        (async () => {
+            const [id, slug] = await Promise.all([
+                loadCheckoutSession(),
+                loadCheckoutPlanSlug(),
+            ]);
+            if (cancelled) return;
+            if (slug) setSelected(slug);
+            if (!id) return;
+            pendingSessionId.current = id;
+            setCancelled(true);
+            if (
+                AppState.currentState === "active" &&
+                Date.now() - checkoutOpenedAt.current >= 2500
+            ) {
+                void settleCheckoutRef.current();
+            }
+        })();
+
+        const onAppState = (next: AppStateStatus) => {
+            const prev = appStateRef.current;
+            appStateRef.current = next;
+            const returnedToForeground =
+                (prev === "background" || prev === "inactive") && next === "active";
+            if (!returnedToForeground) return;
+            if (Date.now() - checkoutOpenedAt.current < 2500) return;
+            void settleCheckoutRef.current();
+        };
+        const appSub = AppState.addEventListener("change", onAppState);
+
+        const onUrl = ({ url }: { url: string }) => {
+            const lower = url.toLowerCase();
+            if (
+                lower.includes("billing/checkout/success") ||
+                lower.includes("billing/checkout/cancel") ||
+                lower.includes("billing/success") ||
+                lower.includes("billing/cancel")
+            ) {
+                void settleCheckoutRef.current();
+            }
+        };
+        const urlSub = Linking.addEventListener("url", onUrl);
+        Linking.getInitialURL().then((url) => {
+            if (url) onUrl({ url });
+        });
+
+        return () => {
+            cancelled = true;
+            appSub.remove();
+            urlSub.remove();
+        };
+    }, []);
+
+    useFocusEffect(
+        useCallback(() => {
+            if (AppState.currentState !== "active") return;
+            if (Date.now() - checkoutOpenedAt.current < 2500) return;
+            void settleCheckoutRef.current();
+        }, []),
+    );
+
+    const handleConfirm = async () => {
+        if (!selected || !selectedPlan) return;
+        setCancelled(false);
+        setLoading(true);
+        setCheckoutPhase("preparing");
+        try {
+            const apiUrl = Constants.expoConfig?.extra?.apiUrl as string | undefined;
+            const token = await AsyncStorage.getItem("token");
+            if (!apiUrl || !token) throw new Error("Please sign in again to continue.");
+
+            const { successUrl, cancelUrl } = getBillingRedirectUrls(apiUrl);
             const res = await axios.post(
                 `${apiUrl}/user/add-plan`,
-                { plan_id: selectedPlan.id },
+                {
+                    plan_id: selectedPlan.id,
+                    success_url: successUrl,
+                    cancel_url: cancelUrl,
+                },
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -361,22 +543,70 @@ const PlanPickerScreen: React.FC = () => {
                     },
                 },
             );
-            console.log("add-plan response:", res.data);
-        } catch (err: any) {
-            const serverMsg: string | undefined = err?.response?.data?.error;
-            const alreadyActive =
-                err?.response?.status === 400 &&
-                typeof serverMsg === "string" &&
-                serverMsg.toLowerCase().includes("already have an active plan");
 
-            if (!alreadyActive) {
-                // Unexpected error — still optimistically confirm so UX isn't broken
-                console.log("add-plan error:", err?.response?.status, err?.response?.data);
+            const checkoutUrl = extractCheckoutUrl(res.data);
+            const sessionId = extractSessionId(res.data);
+            const isPaid = selectedPlan.price > 0;
+
+            if (checkoutUrl) {
+                if (sessionId) {
+                    pendingSessionId.current = sessionId;
+                    await saveCheckoutSession(sessionId, selected ?? undefined);
+                }
+                setCheckoutPhase("idle");
+                setLoading(false);
+                setCancelled(true);
+                checkoutOpenedAt.current = Date.now();
+                // Let the preparing overlay unmount before leaving the app.
+                // Awaiting Safari / in-app browsers from Expo Go freezes the JS thread.
+                setTimeout(() => {
+                    openStripeCheckout(checkoutUrl).catch((openErr) => {
+                        Dialog.show({
+                            type: ALERT_TYPE.DANGER,
+                            title: "Couldn’t open checkout",
+                            textBody: openErr?.message || "Safari couldn’t open Stripe. Try again.",
+                            button: "OK",
+                        });
+                    });
+                }, 250);
+                return;
             }
-            // If already active, fall through to confirmation silently
+
+            if (!isPaid && (res.data?.status === "success" || res.data?.data)) {
+                await clearCheckoutSession();
+                await AsyncStorage.removeItem("cache_dashboard_data");
+                setCheckoutPhase("success");
+                return;
+            }
+
+            throw Object.assign(new Error(extractApiError(res.data)), { data: res.data });
+        } catch (err: any) {
+            pendingSessionId.current = null;
+            await clearCheckoutSession();
+            const serverMsg = extractApiError(err);
+            const alreadyActive = serverMsg.toLowerCase().includes("already have an active plan");
+
+            if (alreadyActive) {
+                Dialog.show({
+                    type: ALERT_TYPE.INFO,
+                    title: "Plan already active",
+                    textBody: serverMsg,
+                    button: "Go to Dashboard",
+                    onHide: () => navigation.navigate("Dashboard"),
+                });
+                setCheckoutPhase("idle");
+                return;
+            }
+
+            Dialog.show({
+                type: ALERT_TYPE.DANGER,
+                title: "Couldn’t start checkout",
+                textBody: serverMsg,
+                button: "OK",
+            });
+            setCheckoutPhase("idle");
         } finally {
             setLoading(false);
-            setConfirmed(true);
         }
     };
 
@@ -384,7 +614,18 @@ const PlanPickerScreen: React.FC = () => {
         navigation.navigate("Dashboard");
 
     // ── Confirmation screen ────────────────────────────────────────────────────
-    if (confirmed && activePlan) {
+    if (checkoutPhase === "success") {
+        const isPaid = selectedPlan ? selectedPlan.price > 0 : true;
+        const shownPlan = activePlan ?? {
+            name: "Your plan",
+            confirmTitle: "You're in",
+            confirmBody: "Payment confirmed. Your plan is active.",
+            accentColor: P.accent,
+            accentSoft: P.accentSoft,
+            price: "",
+            period: "forever",
+            ctaGrad: [P.accent, P.accentMed] as const,
+        };
         return (
             <View
                 style={[
@@ -394,58 +635,72 @@ const PlanPickerScreen: React.FC = () => {
             >
                 <StatusBar barStyle="light-content" backgroundColor={P.bg} />
 
+                <View style={styles.successSteps}>
+                    <Text style={styles.successStepDone}>Select</Text>
+                    <Text style={styles.successStepDot}>·</Text>
+                    <Text style={styles.successStepDone}>{isPaid ? "Pay" : "Activate"}</Text>
+                    <Text style={styles.successStepDot}>·</Text>
+                    <Text style={[styles.successStepNow, { color: shownPlan.accentColor }]}>You're in</Text>
+                </View>
+
                 <View
                     style={[
                         styles.confirmIconWrap,
                         {
-                            backgroundColor: activePlan.accentSoft,
-                            borderColor: `${activePlan.accentColor}55`,
+                            backgroundColor: shownPlan.accentSoft,
+                            borderColor: `${shownPlan.accentColor}55`,
                         },
                     ]}
                 >
-                    <Text style={{ fontSize: 30, color: activePlan.accentColor }}>✓</Text>
+                    <Ionicons name="checkmark" size={34} color={shownPlan.accentColor} />
                 </View>
 
-                <Text style={styles.confirmTitle}>{activePlan.confirmTitle}</Text>
-                <Text style={styles.confirmBody}>{activePlan.confirmBody}</Text>
+                <Text style={styles.confirmTitle}>{shownPlan.confirmTitle}</Text>
+                <Text style={styles.confirmBody}>{shownPlan.confirmBody}</Text>
 
                 <View
                     style={[
                         styles.confirmPlanPill,
-                        { borderColor: `${activePlan.accentColor}30` },
+                        { borderColor: `${shownPlan.accentColor}30` },
                     ]}
                 >
+                    <Ionicons name="sparkles" size={16} color={shownPlan.accentColor} />
                     <Text
-                        style={[styles.confirmPlanName, { color: activePlan.accentColor }]}
+                        style={[styles.confirmPlanName, { color: shownPlan.accentColor }]}
                     >
-                        {activePlan.name}
+                        {shownPlan.name}
                     </Text>
                     <View style={styles.confirmPillDivider} />
                     <Text style={styles.confirmPlanPrice}>
-                        {activePlan.price}
-                        {activePlan.period !== "forever" ? ` · ${activePlan.period}` : ""}
+                        {shownPlan.price}
+                        {shownPlan.period !== "forever" ? ` · ${shownPlan.period}` : ""}
                     </Text>
                 </View>
 
+                {isPaid && (
+                    <Text style={styles.successHint}>
+                        Stripe confirmed your payment. It can take a few seconds for the dashboard to catch up.
+                    </Text>
+                )}
+
                 <TouchableOpacity style={styles.confirmCta} onPress={goToDashboard}>
                     <LinearGradient
-                        colors={activePlan.ctaGrad}
+                        colors={shownPlan.ctaGrad}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 0 }}
                         style={styles.confirmCtaGrad}
                     >
                         <Text style={styles.confirmCtaText}>Go to Dashboard</Text>
+                        <Ionicons name="arrow-forward" size={18} color="#fff" />
                     </LinearGradient>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                    style={styles.backBtn}
-                    onPress={() => {
-                        setConfirmed(false);
-                        setSelected(null);
-                    }}
+                    style={styles.secondaryCta}
+                    onPress={() => navigation.navigate("CreateGroup")}
                 >
-                    <Text style={styles.backBtnText}>← Back to plans</Text>
+                    <Ionicons name="people-outline" size={18} color={P.accent} />
+                    <Text style={styles.secondaryCtaText}>Create your first group</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -481,7 +736,9 @@ const PlanPickerScreen: React.FC = () => {
                 <View style={styles.headerTextBlock}>
                     <Text style={styles.headerTitle}>Choose your plan</Text>
                     <Text style={styles.headerSubtitle}>
-                        Pick the plan that fits your savings community
+                        {selected && activePlan && selectedPlan?.price
+                            ? "Next: a secure Stripe checkout. We never see your card."
+                            : "Pick the plan that fits your savings community"}
                     </Text>
                 </View>
             </LinearGradient>
@@ -495,6 +752,26 @@ const PlanPickerScreen: React.FC = () => {
                 ]}
                 showsVerticalScrollIndicator={false}
             >
+                {cancelled && (
+                    <View style={styles.cancelBanner}>
+                        <View style={styles.cancelBannerIcon}>
+                            <Ionicons name="time-outline" size={22} color={P.warn} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.cancelBannerTitle}>Complete payment in Safari</Text>
+                            <Text style={styles.cancelBannerBody}>
+                                Finish checkout in Safari. The success page may close itself — switch back to Rukuni and we’ll confirm the payment. If it hasn’t landed yet, tap Try again.
+                            </Text>
+                            <TouchableOpacity onPress={settleCheckout} style={styles.retryStatusBtn}>
+                                <Text style={styles.retryStatusText}>Try again</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <TouchableOpacity onPress={() => setCancelled(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                            <Ionicons name="close" size={18} color={P.textMuted} />
+                        </TouchableOpacity>
+                    </View>
+                )}
+
                 {plansLoading ? (
                     <ActivityIndicator
                         color={P.accent}
@@ -524,7 +801,10 @@ const PlanPickerScreen: React.FC = () => {
                             planKey={p.slug}
                             plan={mapApiPlanToConfig(p)}
                             selected={selected}
-                            onSelect={setSelected}
+                            onSelect={(key) => {
+                                setCancelled(false);
+                                setSelected(key);
+                            }}
                         />
                     ))
                 )}
@@ -546,7 +826,14 @@ const PlanPickerScreen: React.FC = () => {
                             {loading ? (
                                 <ActivityIndicator color="#fff" />
                             ) : (
-                                <Text style={styles.ctaText}>{activePlan.label}</Text>
+                                <View style={styles.ctaInner}>
+                                    {selectedPlan && selectedPlan.price > 0 && (
+                                        <Ionicons name="lock-closed" size={16} color="#fff" />
+                                    )}
+                                    <Text style={styles.ctaText}>
+                                        {cancelled ? "Resume checkout" : activePlan.label}
+                                    </Text>
+                                </View>
                             )}
                         </LinearGradient>
                     ) : (
@@ -557,6 +844,15 @@ const PlanPickerScreen: React.FC = () => {
                         </View>
                     )}
                 </TouchableOpacity>
+
+                {selectedPlan && selectedPlan.price > 0 && (
+                    <View style={styles.trustRow}>
+                        <Ionicons name="shield-checkmark" size={14} color={P.accent2} />
+                        <Text style={styles.trustText}>Secured by Stripe</Text>
+                        <Text style={styles.trustDot}>·</Text>
+                        <Text style={styles.trustText}>Cards never touch Rukuni</Text>
+                    </View>
+                )}
 
                 {/* Quick-start free link */}
                 <View style={styles.skipRow}>
@@ -574,6 +870,25 @@ const PlanPickerScreen: React.FC = () => {
                     <Text style={styles.skipDashText}>Skip for now</Text>
                 </TouchableOpacity>
             </ScrollView>
+
+            <Modal visible={checkoutPhase === "preparing"} transparent animationType="fade">
+                <View style={styles.prepareOverlay}>
+                    <View style={styles.prepareCard}>
+                        <View style={styles.prepareIconWrap}>
+                            <Ionicons name={loading ? "card" : "sync"} size={26} color={P.accent} />
+                        </View>
+                        <Text style={styles.prepareTitle}>
+                            {loading ? "Opening secure checkout" : "Checking your payment"}
+                        </Text>
+                        <Text style={styles.prepareBody}>
+                            {loading
+                                ? "Stripe handles the payment. We never see or store your card details."
+                                : "This only takes a moment. Close checkout first if it's still open."}
+                        </Text>
+                        <ActivityIndicator color={P.accent} style={{ marginTop: 18 }} />
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 };
@@ -901,23 +1216,163 @@ const styles = StyleSheet.create({
     confirmCtaGrad: {
         borderRadius: 16,
         paddingVertical: 15,
+        paddingHorizontal: 18,
         alignItems: "center",
+        justifyContent: "center",
+        flexDirection: "row",
+        gap: 8,
     },
     confirmCtaText: {
         fontSize: 15,
         fontWeight: "700",
         color: "#fff",
     },
-    backBtn: {
-        paddingHorizontal: 24,
-        paddingVertical: 11,
-        borderRadius: 12,
+    secondaryCta: {
+        width: "100%",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        paddingVertical: 14,
+        borderRadius: 16,
         borderWidth: 1,
-        borderColor: P.border,
+        borderColor: P.borderHi,
+        backgroundColor: P.surface,
     },
-    backBtnText: {
-        fontSize: 13,
+    secondaryCtaText: {
+        fontSize: 14,
+        fontWeight: "700",
+        color: P.accent,
+    },
+    successSteps: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: 28,
+    },
+    successStepDone: {
+        fontSize: 12,
         fontWeight: "600",
+        color: P.textMuted,
+    },
+    successStepDot: {
+        color: P.textMuted,
+        fontSize: 12,
+    },
+    successStepNow: {
+        fontSize: 12,
+        fontWeight: "800",
+    },
+    successHint: {
+        fontSize: 12,
+        color: P.textMuted,
+        textAlign: "center",
+        lineHeight: 18,
+        marginBottom: 24,
+        maxWidth: 300,
+    },
+    ctaInner: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+    },
+    trustRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        marginTop: 12,
+    },
+    trustText: {
+        fontSize: 11,
+        color: P.textMuted,
+        fontWeight: "600",
+    },
+    trustDot: {
+        fontSize: 11,
+        color: P.textMuted,
+    },
+    cancelBanner: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        backgroundColor: P.warnSoft,
+        borderWidth: 1,
+        borderColor: "rgba(245,158,11,0.35)",
+        borderRadius: 16,
+        padding: 14,
+        marginBottom: 14,
+    },
+    cancelBannerIcon: {
+        width: 36,
+        height: 36,
+        borderRadius: 12,
+        backgroundColor: "rgba(245,158,11,0.12)",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    cancelBannerTitle: {
+        color: P.warn,
+        fontSize: 13,
+        fontWeight: "800",
+        marginBottom: 2,
+    },
+    cancelBannerBody: {
         color: P.textSub,
+        fontSize: 12,
+        lineHeight: 17,
+    },
+    retryStatusBtn: {
+        alignSelf: "flex-start",
+        marginTop: 10,
+        backgroundColor: "rgba(245,158,11,0.18)",
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 8,
+    },
+    retryStatusText: {
+        color: P.warn,
+        fontSize: 12,
+        fontWeight: "800",
+    },
+    prepareOverlay: {
+        flex: 1,
+        backgroundColor: "rgba(0,0,0,0.72)",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 28,
+    },
+    prepareCard: {
+        width: "100%",
+        backgroundColor: P.surfaceHi,
+        borderRadius: 24,
+        borderWidth: 1,
+        borderColor: P.borderHi,
+        paddingVertical: 32,
+        paddingHorizontal: 24,
+        alignItems: "center",
+    },
+    prepareIconWrap: {
+        width: 56,
+        height: 56,
+        borderRadius: 18,
+        backgroundColor: P.accentSoft,
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 16,
+    },
+    prepareTitle: {
+        fontSize: 18,
+        fontWeight: "800",
+        color: P.text,
+        marginBottom: 8,
+        textAlign: "center",
+    },
+    prepareBody: {
+        fontSize: 13,
+        color: P.textSub,
+        textAlign: "center",
+        lineHeight: 20,
+        maxWidth: 260,
     },
 });

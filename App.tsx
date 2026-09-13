@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useCallback } from 'react';
-import { StatusBar, View } from 'react-native';
+import { StatusBar, View, ActivityIndicator } from 'react-native';
 import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import Toast, { BaseToast, BaseToastProps, ErrorToast } from 'react-native-toast-message';
@@ -137,7 +137,11 @@ const AppContent: React.FC = () => {
   }, [setupExpirationTimer]);
 
   if (isAuthenticated === null) {
-    return null; // Optionally, render a loading indicator here
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0b1220', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color="#00a97b" />
+      </View>
+    );
   }
 
   return (
